@@ -46,3 +46,34 @@ Running `dotnet test Keel.sln` builds the pure C# `Keel.Sim` library, the Godot 
 
 - Follow [ADR 0001](../../adr/0001-engine-free-keel-sim-assembly.md) and [CLAUDE.md](../../../../CLAUDE.md): keep `Keel.Sim` free of `GodotSharp`, and do not add boilerplate tests for `F3` boolean toggles or formatting strings.
 - Keep `Main.tscn` minimal (a single root `Node3D` attaching `GameRoot.cs`) and construct camera, environment, and `DebugOverlayNode` in C# using `design.md` tokens (`Consolas` `12px`, `#E6EDF3` text, `#101A26` 82% alpha backing, top-left anchor).
+
+---
+
+## Build note — 2026-11-10
+
+**Result:** green
+
+### Tasks done
+
+- Created `.gitignore`, `Keel.sln`, `config/tuning.json`, `src/Keel.Sim/Keel.Sim.csproj`, `src/Keel.Game/Keel.Game.csproj` (`Godot.NET.Sdk/4.7.0` with `BuildGameDuringTest` hook so `dotnet test Keel.sln` always compiles `Keel.Game`), and `tests/Keel.Sim.Tests/Keel.Sim.Tests.csproj` (`RollForward=LatestMajor` for `.NET 10` runtime execution).
+- Implemented `TuningConfig`, `TuningConfigLoader.LoadOrFallback` (case-insensitive JSON parsing, positive-finite field validation, and non-throwing fallback recovery), `TuningSession` (initial load vs. `1.5 s` reload flash timer), and `DebugTelemetryFormatter`.
+- Added minimal `src/Keel.Game/project.godot` (Godot 4.7, Jolt Physics, `1920x1080`), `Main.tscn`, `GameRoot.cs` (`#05070B` space backdrop, `Camera3D`, `F3` edge toggle, `0.25 s` lock-safe `tuning.json` polling), and `DebugOverlayNode.cs` styled with `design.md` tokens.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Config/TuningConfigTests.cs`
+  - `TuningConfigTests.LoadOrFallback_ParsesValidJsonAndRecoversFromInvalidJson`
+  - `TuningConfigTests.Reload_UpdatesActiveConfigAndExpiresFlashTimer`
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Output: `Passed!  - Failed:     0, Passed:     2, Skipped:     0, Total:     2, Duration: 73 ms - Keel.Sim.Tests.dll (net8.0)` (with both `Keel.Sim.dll` and `Keel.Game.dll` compiling cleanly).
+
+### Deviations from the plan
+
+None.
+
+### Follow-ups
+
+- Wire live ship position, linear/angular velocity, and dampener toggle state from `ShipRigNode` into `DebugTelemetrySnapshot` in `epic-02-newtonian-flight`.

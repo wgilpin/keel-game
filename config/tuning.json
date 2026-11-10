@@ -1,0 +1,9 @@
+{
+  "shipMass": 1200.0,
+  "linearThrust": 24000.0,
+  "angularTorque": 4800.0,
+  "dampenerStrength": 4.0,
+  "maxLinearSpeed": 80.0,
+  "maxAngularSpeed": 2.5,
+  "mouseSensitivity": 0.0025
+}

@@ -46,7 +46,11 @@ public static class TuningConfigLoader
                 ShipInteractRange: parsed.ShipInteractRange ?? fallback.ShipInteractRange,
                 DrillRange: parsed.DrillRange ?? fallback.DrillRange,
                 DrillRate: parsed.DrillRate ?? fallback.DrillRate,
-                SuitCargoCapacity: parsed.SuitCargoCapacity ?? fallback.SuitCargoCapacity);
+                SuitCargoCapacity: parsed.SuitCargoCapacity ?? fallback.SuitCargoCapacity,
+                RefineryCycleSeconds: parsed.RefineryCycleSeconds ?? fallback.RefineryCycleSeconds,
+                RefineryOrePerBlock: parsed.RefineryOrePerBlock ?? fallback.RefineryOrePerBlock,
+                RefineryInteractRange: parsed.RefineryInteractRange ?? fallback.RefineryInteractRange,
+                RefineryBufferCapacity: parsed.RefineryBufferCapacity ?? fallback.RefineryBufferCapacity);
 
             string? validationError = Validate(config);
             if (validationError is not null)
@@ -79,6 +83,10 @@ public static class TuningConfigLoader
         if (!IsPositiveFinite(config.DrillRange)) return "drillRange must be a positive finite number.";
         if (!IsPositiveFinite(config.DrillRate)) return "drillRate must be a positive finite number.";
         if (!IsPositiveFinite(config.SuitCargoCapacity)) return "suitCargoCapacity must be a positive finite number.";
+        if (!IsPositiveFinite(config.RefineryCycleSeconds)) return "refineryCycleSeconds must be a positive finite number.";
+        if (!IsPositiveFinite(config.RefineryOrePerBlock) || config.RefineryOrePerBlock < 1.0f) return "refineryOrePerBlock must be >= 1.";
+        if (!IsPositiveFinite(config.RefineryInteractRange)) return "refineryInteractRange must be a positive finite number.";
+        if (!IsPositiveFinite(config.RefineryBufferCapacity) || config.RefineryBufferCapacity < 1.0f) return "refineryBufferCapacity must be >= 1.";
         return null;
     }
 
@@ -101,5 +109,9 @@ public static class TuningConfigLoader
         public float? DrillRange { get; init; }
         public float? DrillRate { get; init; }
         public float? SuitCargoCapacity { get; init; }
+        public float? RefineryCycleSeconds { get; init; }
+        public float? RefineryOrePerBlock { get; init; }
+        public float? RefineryInteractRange { get; init; }
+        public float? RefineryBufferCapacity { get; init; }
     }
 }

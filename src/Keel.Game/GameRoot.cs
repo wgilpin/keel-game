@@ -12,6 +12,7 @@ using Keel.Sim.Grid;
 using Keel.Sim.Inventory;
 using Keel.Sim.Mining;
 using Keel.Sim.Pilot;
+using Keel.Sim.Refinery;
 using Keel.Sim.Telemetry;
 using SimQuaternion = System.Numerics.Quaternion;
 using SimVector3 = System.Numerics.Vector3;
@@ -42,6 +43,7 @@ public partial class GameRoot : Node3D
     private bool _isAimingAtDeposit;
     private Int3? _targetedGridCell;
     private BlockType _targetedBlockType = BlockType.None;
+    private float _targetedStationDistance = float.MaxValue;
 
     public TuningConfig CurrentTuning => _tuningSession.Current;
     public PilotMode CurrentPilotMode => _pilotModeMachine.CurrentMode;
@@ -160,6 +162,9 @@ public partial class GameRoot : Node3D
             }
         }
 
+        // Step station refinery continuously in physics process
+        RefinerySim.Step(_stationNode.Refinery, CurrentTuning, (float)delta);
+
         // Apply physics flight step
         if (_pilotModeMachine.Mode == PilotMode.SeatedInCockpit)
         {
@@ -193,6 +198,7 @@ public partial class GameRoot : Node3D
             Vector3 targetHitPos = Vector3.Zero;
             _targetedGridCell = null;
             _targetedBlockType = BlockType.None;
+            _targetedStationDistance = float.MaxValue;
 
             var hit = spaceState.IntersectRay(query);
             if (hit.Count > 0)
@@ -207,6 +213,7 @@ public partial class GameRoot : Node3D
                 {
                     _targetedGridCell = cell;
                     _targetedBlockType = bType;
+                    _targetedStationDistance = targetedDistance;
                 }
             }
 
@@ -306,7 +313,9 @@ public partial class GameRoot : Node3D
                 steelBlockCount: _pilotModeMachine.SuitInventory.GetCount(ItemId.SteelBlock),
                 drillStatus: _lastDrillResult.Status,
                 drillProgress: _drillProgress,
-                isAimingAtDeposit: _isAimingAtDeposit);
+                isAimingAtDeposit: _isAimingAtDeposit,
+                targetedBlockType: _targetedBlockType,
+                targetedBlockDistance: _targetedStationDistance);
         }
     }
 

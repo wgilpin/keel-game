@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Godot;
 using Keel.Sim.Config;
+using Keel.Sim.Grid;
 using Keel.Sim.Hud;
 using Keel.Sim.Mining;
 using SimVector3 = System.Numerics.Vector3;
@@ -181,14 +182,17 @@ public partial class SuitVisorHudNode : CanvasLayer
         int steelBlockCount = 0,
         DrillStatus drillStatus = DrillStatus.Idle,
         float drillProgress = 0.0f,
-        bool isAimingAtDeposit = false)
+        bool isAimingAtDeposit = false,
+        BlockType targetedBlockType = BlockType.None,
+        float targetedBlockDistance = float.MaxValue)
     {
         var inv = CultureInfo.InvariantCulture;
 
         // 1. Reticle vector pips & extraction arc
         _reticle.ExtractionProgress = drillProgress;
         _reticle.IsExtracting = drillStatus == DrillStatus.Drilling;
-        _reticle.IsTargetOutOfRange = drillStatus == DrillStatus.OutOfRange && isAimingAtDeposit;
+        _reticle.IsTargetOutOfRange = (drillStatus == DrillStatus.OutOfRange && isAimingAtDeposit) ||
+                                      (targetedBlockType == BlockType.Refinery && targetedBlockDistance > tuning.RefineryInteractRange && targetedBlockDistance <= 25.0f);
         _reticle.UpdateProjection(suitLocalVelocity, cameraFov);
 
         // 2. Bearing tape
@@ -214,7 +218,10 @@ public partial class SuitVisorHudNode : CanvasLayer
             shipInteractRange: tuning.ShipInteractRange,
             currentSpeed: currentSpeed,
             dampenersEnabled: dampenersEnabled,
-            steelBlockCount: steelBlockCount);
+            steelBlockCount: steelBlockCount,
+            targetedBlockType: targetedBlockType,
+            targetedBlockDistance: targetedBlockDistance,
+            refineryInteractRange: tuning.RefineryInteractRange);
 
         _currentSlot = visorState.ActiveSlot;
 
@@ -247,10 +254,15 @@ public partial class SuitVisorHudNode : CanvasLayer
         _cargoBar.AddThemeStyleboxOverride("fill", barFillStyle);
 
         // 5. Contextual prompt
-        if (visorState.CanBoardShip && !string.IsNullOrEmpty(visorState.BoardingPrompt))
+        if (!string.IsNullOrEmpty(visorState.PromptText))
         {
-            _contextPromptLabel.Text = visorState.BoardingPrompt;
-            _contextPromptLabel.AddThemeColorOverride("font_color", VisorPrimary);
+            _contextPromptLabel.Text = visorState.PromptText;
+            Color promptColor = visorState.CanOpenRefinery ? VisorWarning :
+                visorState.CanBoardShip ? VisorPrimary :
+                visorState.PromptText == "OUT OF RANGE" ? VisorWarning :
+                visorState.PromptText.StartsWith("NO STEEL") ? VisorWarning : VisorPrimary;
+
+            _contextPromptLabel.AddThemeColorOverride("font_color", promptColor);
             _contextPromptLabel.Visible = true;
         }
         else if (isAimingAtDeposit && _currentSlot == 1)

@@ -5,5 +5,13 @@
   "dampenerStrength": 4.0,
   "maxLinearSpeed": 80.0,
   "maxAngularSpeed": 2.5,
-  "mouseSensitivity": 0.0025
+  "mouseSensitivity": 0.0025,
+  "suitMass": 95.0,
+  "suitLinearThrust": 1400.0,
+  "suitAngularTorque": 220.0,
+  "suitMaxLinearSpeed": 25.0,
+  "shipInteractRange": 6.0,
+  "drillRange": 5.0,
+  "drillRate": 1.5,
+  "suitCargoCapacity": 50.0
 }

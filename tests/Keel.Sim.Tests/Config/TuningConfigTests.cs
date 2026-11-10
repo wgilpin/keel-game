@@ -85,4 +85,63 @@ public sealed class TuningConfigTests
         Assert.False(session.IsReloadFlashActive);
         Assert.False(string.IsNullOrWhiteSpace(session.LastError));
     }
+
+    [Fact]
+    public void LoadOrFallback_ValidatesSuitAndMiningParametersWithSafeFallback()
+    {
+        const string validJson = """
+        {
+          "shipMass": 1200.0,
+          "linearThrust": 24000.0,
+          "angularTorque": 4800.0,
+          "dampenerStrength": 4.0,
+          "maxLinearSpeed": 80.0,
+          "maxAngularSpeed": 2.5,
+          "mouseSensitivity": 0.0025,
+          "suitMass": 95.0,
+          "suitLinearThrust": 1400.0,
+          "suitAngularTorque": 220.0,
+          "suitMaxLinearSpeed": 25.0,
+          "shipInteractRange": 6.0,
+          "drillRange": 5.0,
+          "drillRate": 1.5,
+          "suitCargoCapacity": 50.0
+        }
+        """;
+
+        var loaded = TuningConfigLoader.LoadOrFallback(validJson, TuningConfig.Default);
+        Assert.True(loaded.IsSuccess);
+        Assert.Null(loaded.ErrorMessage);
+        Assert.Equal(95.0f, loaded.Config.SuitMass);
+        Assert.Equal(1400.0f, loaded.Config.SuitLinearThrust);
+        Assert.Equal(220.0f, loaded.Config.SuitAngularTorque);
+        Assert.Equal(25.0f, loaded.Config.SuitMaxLinearSpeed);
+        Assert.Equal(6.0f, loaded.Config.ShipInteractRange);
+        Assert.Equal(5.0f, loaded.Config.DrillRange);
+        Assert.Equal(1.5f, loaded.Config.DrillRate);
+        Assert.Equal(50.0f, loaded.Config.SuitCargoCapacity);
+
+        // Invalid negative or non-positive suit parameters trigger fallback
+        const string invalidSuitMassJson = """
+        {
+          "suitMass": -10.0
+        }
+        """;
+
+        var fallback = loaded.Config;
+        var invalidMassResult = TuningConfigLoader.LoadOrFallback(invalidSuitMassJson, fallback);
+        Assert.False(invalidMassResult.IsSuccess);
+        Assert.False(string.IsNullOrWhiteSpace(invalidMassResult.ErrorMessage));
+        Assert.Equal(fallback, invalidMassResult.Config);
+
+        const string invalidSpeedJson = """
+        {
+          "suitMaxLinearSpeed": 0.0
+        }
+        """;
+        var invalidSpeedResult = TuningConfigLoader.LoadOrFallback(invalidSpeedJson, fallback);
+        Assert.False(invalidSpeedResult.IsSuccess);
+        Assert.False(string.IsNullOrWhiteSpace(invalidSpeedResult.ErrorMessage));
+        Assert.Equal(fallback, invalidSpeedResult.Config);
+    }
 }

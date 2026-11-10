@@ -14,19 +14,62 @@ public static class FlightKinematics
         TuningConfig tuning,
         float deltaSeconds)
     {
+        return StepCore(
+            in state,
+            in input,
+            mass: tuning.ShipMass,
+            linearThrust: tuning.LinearThrust,
+            angularTorque: tuning.AngularTorque,
+            maxLinearSpeed: tuning.MaxLinearSpeed,
+            maxAngularSpeed: tuning.MaxAngularSpeed,
+            dampenerStrength: tuning.DampenerStrength,
+            mouseSensitivity: tuning.MouseSensitivity,
+            deltaSeconds: deltaSeconds);
+    }
+
+    public static FlightStepResult StepSuit(
+        in FlightState state,
+        in FlightInput input,
+        TuningConfig tuning,
+        float deltaSeconds)
+    {
+        return StepCore(
+            in state,
+            in input,
+            mass: tuning.SuitMass,
+            linearThrust: tuning.SuitLinearThrust,
+            angularTorque: tuning.SuitAngularTorque,
+            maxLinearSpeed: tuning.SuitMaxLinearSpeed,
+            maxAngularSpeed: tuning.MaxAngularSpeed,
+            dampenerStrength: tuning.DampenerStrength,
+            mouseSensitivity: tuning.MouseSensitivity,
+            deltaSeconds: deltaSeconds);
+    }
+
+    private static FlightStepResult StepCore(
+        in FlightState state,
+        in FlightInput input,
+        float mass,
+        float linearThrust,
+        float angularTorque,
+        float maxLinearSpeed,
+        float maxAngularSpeed,
+        float dampenerStrength,
+        float mouseSensitivity,
+        float deltaSeconds)
+    {
         if (!float.IsFinite(deltaSeconds) || deltaSeconds <= 0f ||
-            !float.IsFinite(tuning.ShipMass) || tuning.ShipMass <= 0f)
+            !float.IsFinite(mass) || mass <= 0f)
         {
             return new FlightStepResult(Vector3.Zero, Vector3.Zero, state);
         }
 
-        float mass = tuning.ShipMass;
-        float rotationalInertia = tuning.ShipMass;
-        float maxLinearSpeed = MathF.Max(0f, tuning.MaxLinearSpeed);
-        float maxAngularSpeed = MathF.Max(0f, tuning.MaxAngularSpeed);
-        float linearThrust = MathF.Max(0f, tuning.LinearThrust);
-        float angularTorque = MathF.Max(0f, tuning.AngularTorque);
-        float dampenerStrength = MathF.Max(0f, tuning.DampenerStrength);
+        float rotationalInertia = mass;
+        float safeMaxLin = MathF.Max(0f, maxLinearSpeed);
+        float safeMaxAng = MathF.Max(0f, maxAngularSpeed);
+        float safeLinThrust = MathF.Max(0f, linearThrust);
+        float safeAngTorque = MathF.Max(0f, angularTorque);
+        float safeDampStrength = MathF.Max(0f, dampenerStrength);
 
         Vector3 clampedTranslation = ClampAxesUnit(input.Translation);
         if (clampedTranslation.LengthSquared() > 1f)
@@ -37,25 +80,25 @@ public static class FlightKinematics
         (Vector3 nextLinearVelocity, Vector3 appliedForce) = StepChannel(
             state.LinearVelocity,
             clampedTranslation,
-            linearThrust,
+            safeLinThrust,
             mass,
-            maxLinearSpeed,
-            dampenerStrength,
+            safeMaxLin,
+            safeDampStrength,
             state.DampenersEnabled,
             deltaSeconds);
 
-        float pitchInput = Math.Clamp(-input.MouseDelta.Y * tuning.MouseSensitivity, -1f, 1f);
-        float yawInput = Math.Clamp(-input.MouseDelta.X * tuning.MouseSensitivity, -1f, 1f);
+        float pitchInput = Math.Clamp(-input.MouseDelta.Y * mouseSensitivity, -1f, 1f);
+        float yawInput = Math.Clamp(-input.MouseDelta.X * mouseSensitivity, -1f, 1f);
         float rollInput = Math.Clamp(input.Roll, -1f, 1f);
         var rotationControl = new Vector3(pitchInput, yawInput, rollInput);
 
         (Vector3 nextAngularVelocity, Vector3 appliedTorque) = StepChannel(
             state.AngularVelocity,
             rotationControl,
-            angularTorque,
+            safeAngTorque,
             rotationalInertia,
-            maxAngularSpeed,
-            dampenerStrength,
+            safeMaxAng,
+            safeDampStrength,
             state.DampenersEnabled,
             deltaSeconds);
 

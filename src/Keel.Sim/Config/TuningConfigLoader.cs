@@ -38,7 +38,15 @@ public static class TuningConfigLoader
                 DampenerStrength: parsed.DampenerStrength ?? fallback.DampenerStrength,
                 MaxLinearSpeed: parsed.MaxLinearSpeed ?? fallback.MaxLinearSpeed,
                 MaxAngularSpeed: parsed.MaxAngularSpeed ?? fallback.MaxAngularSpeed,
-                MouseSensitivity: parsed.MouseSensitivity ?? fallback.MouseSensitivity);
+                MouseSensitivity: parsed.MouseSensitivity ?? fallback.MouseSensitivity,
+                SuitMass: parsed.SuitMass ?? fallback.SuitMass,
+                SuitLinearThrust: parsed.SuitLinearThrust ?? fallback.SuitLinearThrust,
+                SuitAngularTorque: parsed.SuitAngularTorque ?? fallback.SuitAngularTorque,
+                SuitMaxLinearSpeed: parsed.SuitMaxLinearSpeed ?? fallback.SuitMaxLinearSpeed,
+                ShipInteractRange: parsed.ShipInteractRange ?? fallback.ShipInteractRange,
+                DrillRange: parsed.DrillRange ?? fallback.DrillRange,
+                DrillRate: parsed.DrillRate ?? fallback.DrillRate,
+                SuitCargoCapacity: parsed.SuitCargoCapacity ?? fallback.SuitCargoCapacity);
 
             string? validationError = Validate(config);
             if (validationError is not null)
@@ -63,6 +71,14 @@ public static class TuningConfigLoader
         if (!IsPositiveFinite(config.MaxLinearSpeed)) return "maxLinearSpeed must be a positive finite number.";
         if (!IsPositiveFinite(config.MaxAngularSpeed)) return "maxAngularSpeed must be a positive finite number.";
         if (!IsPositiveFinite(config.MouseSensitivity)) return "mouseSensitivity must be a positive finite number.";
+        if (!IsPositiveFinite(config.SuitMass)) return "suitMass must be a positive finite number.";
+        if (!IsPositiveFinite(config.SuitLinearThrust)) return "suitLinearThrust must be a positive finite number.";
+        if (!IsPositiveFinite(config.SuitAngularTorque)) return "suitAngularTorque must be a positive finite number.";
+        if (!IsPositiveFinite(config.SuitMaxLinearSpeed)) return "suitMaxLinearSpeed must be a positive finite number.";
+        if (!IsPositiveFinite(config.ShipInteractRange)) return "shipInteractRange must be a positive finite number.";
+        if (!IsPositiveFinite(config.DrillRange)) return "drillRange must be a positive finite number.";
+        if (!IsPositiveFinite(config.DrillRate)) return "drillRate must be a positive finite number.";
+        if (!IsPositiveFinite(config.SuitCargoCapacity)) return "suitCargoCapacity must be a positive finite number.";
         return null;
     }
 
@@ -77,5 +93,13 @@ public static class TuningConfigLoader
         public float? MaxLinearSpeed { get; init; }
         public float? MaxAngularSpeed { get; init; }
         public float? MouseSensitivity { get; init; }
+        public float? SuitMass { get; init; }
+        public float? SuitLinearThrust { get; init; }
+        public float? SuitAngularTorque { get; init; }
+        public float? SuitMaxLinearSpeed { get; init; }
+        public float? ShipInteractRange { get; init; }
+        public float? DrillRange { get; init; }
+        public float? DrillRate { get; init; }
+        public float? SuitCargoCapacity { get; init; }
     }
 }

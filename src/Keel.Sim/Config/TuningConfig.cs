@@ -24,7 +24,7 @@ public sealed record TuningConfig(
         DampenerStrength: 4.0f,
         MaxLinearSpeed: 80.0f,
         MaxAngularSpeed: 2.5f,
-        MouseSensitivity: 0.0025f,
+        MouseSensitivity: 0.025f,
         SuitMass: 95.0f,
         SuitLinearThrust: 1400.0f,
         SuitAngularTorque: 220.0f,

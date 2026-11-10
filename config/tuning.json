@@ -5,7 +5,7 @@
   "dampenerStrength": 4.0,
   "maxLinearSpeed": 80.0,
   "maxAngularSpeed": 2.5,
-  "mouseSensitivity": 0.0025,
+  "mouseSensitivity": 0.025,
   "suitMass": 95.0,
   "suitLinearThrust": 1400.0,
   "suitAngularTorque": 220.0,

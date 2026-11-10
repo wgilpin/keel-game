@@ -29,7 +29,7 @@ public sealed class FlightKinematicsTests
         Assert.Equal(0.5f * tuning.LinearThrust, halfStep.Force.X, precision: 2);
 
         // 2. Torque scales linearly with MouseSensitivity (pitch/yaw) and AngularTorque (pitch/yaw/roll).
-        var rotInput = new FlightInput(Vector3.Zero, MouseDelta: new Vector2(100f, -50f), Roll: 0.5f);
+        var rotInput = new FlightInput(Vector3.Zero, MouseDelta: new Vector2(10f, -5f), Roll: 0.5f);
         FlightStepResult rotStep = FlightKinematics.Step(in atRest, in rotInput, tuning, deltaSeconds: 1f / 60f);
         Assert.Equal(0.125f * tuning.AngularTorque, rotStep.Torque.X, precision: 2);  // Mouse up (-Y) -> +X pitch
         Assert.Equal(-0.25f * tuning.AngularTorque, rotStep.Torque.Y, precision: 2);  // Mouse right (+X) -> -Y yaw

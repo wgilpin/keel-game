@@ -4,6 +4,7 @@ using Godot;
 using Keel.Game.Flight;
 using Keel.Game.Input;
 using Keel.Game.UI;
+using Keel.Game.World;
 using Keel.Sim.Config;
 using Keel.Sim.Flight;
 using Keel.Sim.Telemetry;
@@ -17,6 +18,7 @@ public partial class GameRoot : Node3D
 
     private ShipRigNode _shipRig = null!;
     private DebugOverlayNode _debugOverlay = null!;
+    private SpaceDustNode _spaceDust = null!;
     private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
 
@@ -31,12 +33,10 @@ public partial class GameRoot : Node3D
 
     public override void _Ready()
     {
-        var env = new Godot.Environment
-        {
-            BackgroundMode = Godot.Environment.BGMode.Color,
-            BackgroundColor = SpaceBackdrop,
-        };
-        AddChild(new WorldEnvironment { Environment = env });
+        AddChild(SpaceEnvironmentBuilder.CreateEnvironment());
+        AddChild(SpaceEnvironmentBuilder.CreateSunlight());
+        AddChild(LandmarkBuilder.CreateStation());
+        AddChild(LandmarkBuilder.CreateAsteroid());
 
         _configPath = ResolveConfigPath();
         LoadInitialConfig();
@@ -46,6 +46,9 @@ public partial class GameRoot : Node3D
 
         _debugOverlay = new DebugOverlayNode();
         AddChild(_debugOverlay);
+
+        _spaceDust = new SpaceDustNode();
+        AddChild(_spaceDust);
 
         Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Captured;
     }
@@ -104,6 +107,7 @@ public partial class GameRoot : Node3D
             LastConfigError: _tuningSession.LastError);
 
         _debugOverlay.Render(in snapshot);
+        _spaceDust.UpdateDust(_shipRig.CockpitCamera.GlobalPosition);
     }
 
     private void LoadInitialConfig()

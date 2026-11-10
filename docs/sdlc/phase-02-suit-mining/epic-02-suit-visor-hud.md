@@ -40,3 +40,61 @@ Switching to `FloatingInSuit` hides the warm amber `CockpitHudNode` and activate
 
 - Use exact Suit Visor tokens from [design.md](../../design.md): background `#101A26` (82% alpha), surface `#16222F` (92% alpha), border `#2B4257`, text `#E6EDF3`, muted `#8B9EB0`, primary `#38BDF8`, active/warning `#F59E0B`, danger `#EF4444`, `56x56px` hotbar slots, and `480px` top-center bearing tape clear of the top-left `F3` `DebugOverlayNode`. Do not write unit tests asserting colour constants (`CLAUDE.md`).
 - Reuse or parameterize `ReticleCanvasControl` so the suit visor shares 6DoF prograde/retrograde drift pips in `#38BDF8` cyan while seated cockpit mode keeps `#FF8C1A` amber.
+
+## Build note — 2026-11-10
+
+### Tasks done
+
+- Implemented `VisorBearingTapeModel` in `Keel.Sim.Hud` with 6DoF horizontal plane projection, normalized FOV mapping into `[-1, +1]`, rear/off-span edge clamping to `-1`/`+1` without `±180°` rear seam flips, zero-distance `NaN` guards, and monotonic degree tick generation across `[0, 360)`.
+- Implemented `SuitVisorModel` in `Keel.Sim.Hud` evaluating hotbar slot bounds (`[1]`–`[5]`, preserving active slot on invalid inputs), clamping cargo fill ratio to `[0, 1]` with `IsCargoFull` flag, and gating contextual `[F] Board Ship` prompt on `shipInteractRange`.
+- Parameterized `ReticleCanvasControl` in `Keel.Game.UI` with `ReticleColorTheme` (`Amber` for cockpit HUD, `Cyan` for suit visor) to share 6DoF prograde/retrograde drift pips across both modes.
+- Implemented `BearingTapeControl` in `Keel.Game.UI` rendering a 480px top-center compass tape with scrolling degree ticks and `SHIP`/`STATION`/`ASTEROID` diamond landmark markers with range labels.
+- Implemented `SuitVisorHudNode` in `Keel.Game.UI` with slate-cyan design tokens (`#101A26` / `#16222F` / `#2B4257` / `#38BDF8`), bottom-left status stack (digital speed, `Z: ON`/`OFF` badge, `CARGO` bar), 5-slot hotbar with `[1] Drill` default highlight, and contextual boarding prompt.
+- Updated `ShipInputReader` to capture `1`–`5` hotbar keys and wired `GameRoot` to switch between cockpit and suit visor HUDs and stream camera 6DoF vectors, landmarks, speed, and dampener telemetry to the visor HUD.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Hud/SuitVisorHudTests.cs`
+  - `SuitVisorHudTests.BearingTape_ProjectsAzimuthsAndClampsOffSpanAndRearLandmarks` (proves AC-1)
+  - `SuitVisorHudTests.BearingTape_WrapsCompassTicksCleanlyAcross180Seam` (proves AC-2)
+  - `SuitVisorHudTests.VisorModel_ClampsHotbarSelectionCargoFillAndBoardingPrompt` (proves AC-3)
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Summary: `Passed! - Failed: 0, Passed: 16, Skipped: 0, Total: 16, Duration: 33 ms - Keel.Sim.Tests.dll (net8.0)` (with `Keel.Game` compiled cleanly)
+
+### Deviations from the plan
+
+None.
+
+### Follow-ups
+
+- Launch Godot (`F5`) to verify visor readability, bearing tape landmark tracking, and hotbar slot switching in zero-g suit EVA.
+
+---
+
+## Review — 2026-11-10
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `SuitVisorHudTests.BearingTape_ProjectsAzimuthsAndClampsOffSpanAndRearLandmarks` |
+| AC-2 | yes | `SuitVisorHudTests.BearingTape_WrapsCompassTicksCleanlyAcross180Seam` |
+| AC-3 | yes | `SuitVisorHudTests.VisorModel_ClampsHotbarSelectionCargoFillAndBoardingPrompt` |
+
+### Drift
+
+None
+
+### Findings
+
+None
+
+### Follow-ups
+
+None
+

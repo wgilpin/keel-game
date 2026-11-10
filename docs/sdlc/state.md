@@ -26,10 +26,10 @@ Updated: 2026-11-10
   - [x] epic-02-newtonian-flight — merged 2026-11-10
   - [x] epic-03-space-arena — merged 2026-11-10
   - [x] epic-04-cockpit-hud — merged 2026-11-10
-- [ ] 02-suit-mining — in progress
+- [x] 02-suit-mining — done
   - [x] epic-01-suit-eva — merged 2026-11-10
   - [x] epic-02-suit-visor-hud — merged 2026-11-10
-  - [x] epic-03-asteroid-mining — reviewed 2026-11-10
+  - [x] epic-03-asteroid-mining — merged 2026-11-10
 - [ ] 03-station-refinery — pending
 - [ ] 04-grid-construction — pending
 

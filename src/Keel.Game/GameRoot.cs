@@ -3,11 +3,14 @@ using System.IO;
 using Godot;
 using Keel.Game.Flight;
 using Keel.Game.Input;
+using Keel.Game.Suit;
 using Keel.Game.UI;
 using Keel.Game.World;
 using Keel.Sim.Config;
 using Keel.Sim.Flight;
+using Keel.Sim.Pilot;
 using Keel.Sim.Telemetry;
+using SimQuaternion = System.Numerics.Quaternion;
 using SimVector3 = System.Numerics.Vector3;
 
 namespace Keel.Game;
@@ -17,20 +20,21 @@ public partial class GameRoot : Node3D
     private const double ConfigPollIntervalSeconds = 0.25;
 
     private ShipRigNode _shipRig = null!;
+    private SuitRigNode _suitRig = null!;
     private DebugOverlayNode _debugOverlay = null!;
     private SpaceDustNode _spaceDust = null!;
     private CockpitHudNode _cockpitHud = null!;
     private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
+    private readonly PilotModeStateMachine _pilotModeMachine = new();
 
     private string _configPath = string.Empty;
     private DateTime _lastObservedWriteUtc;
     private double _pollAccumulator;
     private bool _f3WasPressed;
 
-    private static readonly Color SpaceBackdrop = new(0x05 / 255f, 0x07 / 255f, 0x0B / 255f, 1.0f);
-
     public TuningConfig CurrentTuning => _tuningSession.Current;
+    public PilotMode CurrentPilotMode => _pilotModeMachine.CurrentMode;
 
     public override void _Ready()
     {
@@ -44,6 +48,9 @@ public partial class GameRoot : Node3D
 
         _shipRig = new ShipRigNode();
         AddChild(_shipRig);
+
+        _suitRig = new SuitRigNode();
+        AddChild(_suitRig);
 
         _debugOverlay = new DebugOverlayNode();
         AddChild(_debugOverlay);
@@ -75,18 +82,81 @@ public partial class GameRoot : Node3D
 
         if (_inputReader.ConsumeDampenerToggle())
         {
-            _shipRig.DampenersEnabled = !_shipRig.DampenersEnabled;
-            _cockpitHud.InfoLog.Push(_shipRig.DampenersEnabled
-                ? "DMP: INERTIAL DAMPENERS ON"
-                : "DMP: INERTIAL DAMPENERS OFF");
+            if (_pilotModeMachine.Mode == PilotMode.SeatedInCockpit)
+            {
+                _shipRig.DampenersEnabled = !_shipRig.DampenersEnabled;
+                _cockpitHud.InfoLog.Push(_shipRig.DampenersEnabled
+                    ? "DMP: INERTIAL DAMPENERS ON"
+                    : "DMP: INERTIAL DAMPENERS OFF");
+            }
+            else
+            {
+                _suitRig.DampenersEnabled = !_suitRig.DampenersEnabled;
+            }
         }
     }
 
     public override void _PhysicsProcess(double delta)
     {
         bool isCaptured = Godot.Input.MouseMode == Godot.Input.MouseModeEnum.Captured;
-        FlightInput flightInput = _inputReader.ConsumeFlightInput(isCaptured);
-        _shipRig.ApplyFlightStep(in flightInput, CurrentTuning, (float)delta);
+
+        // Handle EVA exit / board ship toggle (F key)
+        if (_inputReader.ConsumeInteractToggle())
+        {
+            if (_pilotModeMachine.Mode == PilotMode.SeatedInCockpit)
+            {
+                // Exit cockpit into EVA suit
+                Godot.Quaternion shipRotGodot = _shipRig.GlobalBasis.GetRotationQuaternion();
+                SuitSpawnState spawn = _pilotModeMachine.ExitCockpit(
+                    ToSim(_shipRig.GlobalPosition),
+                    ToSim(shipRotGodot),
+                    ToSim(_shipRig.LinearVelocity));
+
+                _shipRig.SetHullVisible(true);
+                _suitRig.Spawn(
+                    ToGodot(spawn.Position),
+                    ToGodot(spawn.Orientation),
+                    ToGodot(spawn.LinearVelocity),
+                    ToGodot(spawn.AngularVelocity));
+                _suitRig.SetActive(true);
+                _shipRig.CockpitCamera.Current = false;
+                _suitRig.SuitCamera.Current = true;
+                _cockpitHud.Visible = false;
+            }
+            else if (_pilotModeMachine.Mode == PilotMode.FloatingInSuit)
+            {
+                // Try to board ship if within interact range
+                bool boarded = _pilotModeMachine.TryBoardShip(
+                    ToSim(_shipRig.GlobalPosition),
+                    ToSim(_suitRig.GlobalPosition),
+                    CurrentTuning.ShipInteractRange);
+
+                if (boarded)
+                {
+                    _suitRig.SetActive(false);
+                    _shipRig.SetHullVisible(false);
+                    _suitRig.SuitCamera.Current = false;
+                    _shipRig.CockpitCamera.Current = true;
+                    _cockpitHud.Visible = true;
+                    _cockpitHud.InfoLog.Push("PILOT: BOARDED SHIP");
+                }
+            }
+        }
+
+        // Apply physics flight step
+        if (_pilotModeMachine.Mode == PilotMode.SeatedInCockpit)
+        {
+            FlightInput flightInput = _inputReader.ConsumeFlightInput(isCaptured);
+            _shipRig.ApplyFlightStep(in flightInput, CurrentTuning, (float)delta);
+        }
+        else
+        {
+            // Unmanned ship continues dampening and boundary enforcement
+            _shipRig.ApplyFlightStep(FlightInput.Zero, CurrentTuning, (float)delta);
+
+            FlightInput suitInput = _inputReader.ConsumeFlightInput(isCaptured);
+            _suitRig.ApplyFlightStep(in suitInput, CurrentTuning, (float)delta);
+        }
     }
 
     public override void _Process(double delta)
@@ -101,33 +171,41 @@ public partial class GameRoot : Node3D
         _tuningSession.Tick((float)delta);
         PollConfigReload(delta);
 
-        Vector3 pos = _shipRig.GlobalPosition;
-        Vector3 linVel = _shipRig.LinearVelocity;
-        Vector3 angVel = _shipRig.AngularVelocity;
+        bool isSuit = _pilotModeMachine.Mode == PilotMode.FloatingInSuit;
+        Vector3 activeCamPos = isSuit ? _suitRig.SuitCamera.GlobalPosition : _shipRig.CockpitCamera.GlobalPosition;
+        _spaceDust.UpdateDust(activeCamPos);
+
+        Vector3 pos = isSuit ? _suitRig.GlobalPosition : _shipRig.GlobalPosition;
+        Vector3 linVel = isSuit ? _suitRig.LinearVelocity : _shipRig.LinearVelocity;
+        Vector3 angVel = isSuit ? _suitRig.AngularVelocity : _shipRig.AngularVelocity;
+        bool dampeners = isSuit ? _suitRig.DampenersEnabled : _shipRig.DampenersEnabled;
 
         var snapshot = new DebugTelemetrySnapshot(
             Position: new SimVector3(pos.X, pos.Y, pos.Z),
             LinearVelocity: new SimVector3(linVel.X, linVel.Y, linVel.Z),
             AngularVelocity: new SimVector3(angVel.X, angVel.Y, angVel.Z),
-            DampenersEnabled: _shipRig.DampenersEnabled,
+            DampenersEnabled: dampeners,
             IsReloadFlashActive: _tuningSession.IsReloadFlashActive,
-            LastConfigError: _tuningSession.LastError);
+            LastConfigError: _tuningSession.LastError,
+            Mode: _pilotModeMachine.Mode);
 
         _debugOverlay.Render(in snapshot);
-        _spaceDust.UpdateDust(_shipRig.CockpitCamera.GlobalPosition);
 
-        Basis worldToLocal = _shipRig.GlobalBasis.Transposed();
-        Vector3 localLin = worldToLocal * linVel;
-        bool isAtBoundary = pos.Length() >= Keel.Sim.Arena.SpaceArenaLayout.SoftBoundaryRadius;
+        if (!isSuit)
+        {
+            Basis worldToLocal = _shipRig.GlobalBasis.Transposed();
+            Vector3 localLin = worldToLocal * linVel;
+            bool isAtBoundary = pos.Length() >= Keel.Sim.Arena.SpaceArenaLayout.SoftBoundaryRadius;
 
-        _cockpitHud.UpdateHud(
-            new SimVector3(localLin.X, localLin.Y, localLin.Z),
-            new SimVector3(pos.X, pos.Y, pos.Z),
-            linVel.Length(),
-            CurrentTuning,
-            _shipRig.DampenersEnabled,
-            isAtBoundary,
-            _shipRig.CockpitCamera.Fov);
+            _cockpitHud.UpdateHud(
+                new SimVector3(localLin.X, localLin.Y, localLin.Z),
+                new SimVector3(pos.X, pos.Y, pos.Z),
+                linVel.Length(),
+                CurrentTuning,
+                _shipRig.DampenersEnabled,
+                isAtBoundary,
+                _shipRig.CockpitCamera.Fov);
+        }
     }
 
     private void LoadInitialConfig()
@@ -198,7 +276,6 @@ public partial class GameRoot : Node3D
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Editor may hold a transient lock or atomic-replace handle mid-save; retry on next poll.
             return false;
         }
     }
@@ -211,4 +288,9 @@ public partial class GameRoot : Node3D
             ? repoCandidate
             : Path.Combine(projectDir, "tuning.json");
     }
+
+    private static SimVector3 ToSim(Vector3 v) => new(v.X, v.Y, v.Z);
+    private static Vector3 ToGodot(SimVector3 v) => new(v.X, v.Y, v.Z);
+    private static SimQuaternion ToSim(Godot.Quaternion q) => new(q.X, q.Y, q.Z, q.W);
+    private static Godot.Quaternion ToGodot(SimQuaternion q) => new(q.X, q.Y, q.Z, q.W);
 }

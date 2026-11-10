@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using Keel.Sim.Pilot;
 
 namespace Keel.Sim.Telemetry;
 
@@ -9,7 +10,8 @@ public readonly record struct DebugTelemetrySnapshot(
     Vector3 AngularVelocity,
     bool DampenersEnabled,
     bool IsReloadFlashActive,
-    string? LastConfigError);
+    string? LastConfigError,
+    PilotMode Mode = PilotMode.SeatedInCockpit);
 
 public static class DebugTelemetryFormatter
 {
@@ -24,8 +26,10 @@ public static class DebugTelemetryFormatter
             : snapshot.IsReloadFlashActive
                 ? "RELOADED"
                 : "OK";
+        string mode = snapshot.Mode == PilotMode.FloatingInSuit ? "MODE SUIT" : "MODE COCKPIT";
 
         return string.Create(inv,
+            $"{mode}\n" +
             $"POS  {snapshot.Position.X,8:F1} {snapshot.Position.Y,8:F1} {snapshot.Position.Z,8:F1} m\n" +
             $"VEL  {snapshot.LinearVelocity.X,8:F1} {snapshot.LinearVelocity.Y,8:F1} {snapshot.LinearVelocity.Z,8:F1} m/s ({speed:F1})\n" +
             $"ANG  {snapshot.AngularVelocity.X,8:F2} {snapshot.AngularVelocity.Y,8:F2} {snapshot.AngularVelocity.Z,8:F2} rad/s\n" +

@@ -10,6 +10,7 @@ namespace Keel.Game.Flight;
 public partial class ShipRigNode : RigidBody3D
 {
     public Camera3D CockpitCamera { get; private set; } = null!;
+    public Node3D HullMesh { get; private set; } = null!;
     public bool DampenersEnabled { get; set; } = true;
 
     public override void _Ready()
@@ -27,6 +28,10 @@ public partial class ShipRigNode : RigidBody3D
         };
         AddChild(hullShape);
 
+        HullMesh = ShipHullBuilder.CreateHull();
+        AddChild(HullMesh);
+        SetHullVisible(false);
+
         CockpitCamera = new Camera3D
         {
             Fov = 75.0f,
@@ -39,6 +44,14 @@ public partial class ShipRigNode : RigidBody3D
         AddChild(CockpitCamera);
 
         SyncMassAndInertia(TuningConfig.Default.ShipMass);
+    }
+
+    public void SetHullVisible(bool visible)
+    {
+        if (HullMesh != null)
+        {
+            HullMesh.Visible = visible;
+        }
     }
 
     public void ApplyFlightStep(in FlightInput input, TuningConfig tuning, float deltaSeconds)

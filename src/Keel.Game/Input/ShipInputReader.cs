@@ -11,6 +11,7 @@ public sealed class ShipInputReader
     private bool _pendingCaptureToggle;
     private bool _pendingRecaptureClick;
     private bool _pendingDampenerToggle;
+    private bool _pendingInteractToggle;
 
     public void HandleInputEvent(InputEvent @event, bool isMouseCaptured)
     {
@@ -24,6 +25,10 @@ public sealed class ShipInputReader
             else if (key == Key.Z)
             {
                 _pendingDampenerToggle = true;
+            }
+            else if (key == Key.F)
+            {
+                _pendingInteractToggle = true;
             }
         }
         else if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } && !isMouseCaptured)
@@ -54,6 +59,13 @@ public sealed class ShipInputReader
     {
         bool toggled = _pendingDampenerToggle;
         _pendingDampenerToggle = false;
+        return toggled;
+    }
+
+    public bool ConsumeInteractToggle()
+    {
+        bool toggled = _pendingInteractToggle;
+        _pendingInteractToggle = false;
         return toggled;
     }
 

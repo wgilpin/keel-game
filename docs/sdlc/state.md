@@ -28,7 +28,7 @@ Updated: 2026-11-10
   - [x] epic-04-cockpit-hud — merged 2026-11-10
 - [ ] 02-suit-mining — in progress
   - [x] epic-01-suit-eva — merged 2026-11-10
-  - [x] epic-02-suit-visor-hud — reviewed 2026-11-10
+  - [x] epic-02-suit-visor-hud — merged 2026-11-10
   - [ ] epic-03-asteroid-mining — pending
 - [ ] 03-station-refinery — pending
 - [ ] 04-grid-construction — pending

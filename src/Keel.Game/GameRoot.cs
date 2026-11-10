@@ -1,8 +1,11 @@
 using System;
 using System.IO;
 using Godot;
+using Keel.Game.Flight;
+using Keel.Game.Input;
 using Keel.Game.UI;
 using Keel.Sim.Config;
+using Keel.Sim.Flight;
 using Keel.Sim.Telemetry;
 using SimVector3 = System.Numerics.Vector3;
 
@@ -12,8 +15,9 @@ public partial class GameRoot : Node3D
 {
     private const double ConfigPollIntervalSeconds = 0.25;
 
-    private Camera3D _camera = null!;
+    private ShipRigNode _shipRig = null!;
     private DebugOverlayNode _debugOverlay = null!;
+    private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
 
     private string _configPath = string.Empty;
@@ -34,25 +38,50 @@ public partial class GameRoot : Node3D
         };
         AddChild(new WorldEnvironment { Environment = env });
 
-        _camera = new Camera3D
-        {
-            Fov = 75.0f,
-            Near = 0.1f,
-            Far = 30000.0f,
-            Current = true,
-        };
-        AddChild(_camera);
+        _configPath = ResolveConfigPath();
+        LoadInitialConfig();
+
+        _shipRig = new ShipRigNode();
+        AddChild(_shipRig);
 
         _debugOverlay = new DebugOverlayNode();
         AddChild(_debugOverlay);
 
-        _configPath = ResolveConfigPath();
-        LoadInitialConfig();
+        Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Captured;
+    }
+
+    public override void _Input(InputEvent @event)
+    {
+        bool isCaptured = Godot.Input.MouseMode == Godot.Input.MouseModeEnum.Captured;
+        _inputReader.HandleInputEvent(@event, isCaptured);
+
+        if (_inputReader.ConsumeMouseCaptureToggle())
+        {
+            Godot.Input.MouseMode = isCaptured
+                ? Godot.Input.MouseModeEnum.Visible
+                : Godot.Input.MouseModeEnum.Captured;
+        }
+        else if (_inputReader.ConsumeMouseRecaptureClick())
+        {
+            Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Captured;
+        }
+
+        if (_inputReader.ConsumeDampenerToggle())
+        {
+            _shipRig.DampenersEnabled = !_shipRig.DampenersEnabled;
+        }
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        bool isCaptured = Godot.Input.MouseMode == Godot.Input.MouseModeEnum.Captured;
+        FlightInput flightInput = _inputReader.ConsumeFlightInput(isCaptured);
+        _shipRig.ApplyFlightStep(in flightInput, CurrentTuning, (float)delta);
     }
 
     public override void _Process(double delta)
     {
-        bool f3Pressed = Input.IsKeyPressed(Key.F3);
+        bool f3Pressed = Godot.Input.IsKeyPressed(Key.F3);
         if (f3Pressed && !_f3WasPressed)
         {
             _debugOverlay.ToggleVisibility();
@@ -62,12 +91,15 @@ public partial class GameRoot : Node3D
         _tuningSession.Tick((float)delta);
         PollConfigReload(delta);
 
-        var pos = _camera.GlobalPosition;
+        Vector3 pos = _shipRig.GlobalPosition;
+        Vector3 linVel = _shipRig.LinearVelocity;
+        Vector3 angVel = _shipRig.AngularVelocity;
+
         var snapshot = new DebugTelemetrySnapshot(
             Position: new SimVector3(pos.X, pos.Y, pos.Z),
-            LinearVelocity: SimVector3.Zero,
-            AngularVelocity: SimVector3.Zero,
-            DampenersEnabled: true,
+            LinearVelocity: new SimVector3(linVel.X, linVel.Y, linVel.Z),
+            AngularVelocity: new SimVector3(angVel.X, angVel.Y, angVel.Z),
+            DampenersEnabled: _shipRig.DampenersEnabled,
             IsReloadFlashActive: _tuningSession.IsReloadFlashActive,
             LastConfigError: _tuningSession.LastError);
 

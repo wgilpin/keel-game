@@ -22,6 +22,7 @@ public partial class DebugOverlayNode : CanvasLayer
         _panel = new PanelContainer
         {
             Position = new Vector2(16, 16),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
         };
 
         _boxStyle = new StyleBoxFlat

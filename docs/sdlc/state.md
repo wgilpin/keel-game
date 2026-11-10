@@ -25,7 +25,7 @@ Updated: 2026-11-10
   - [x] epic-01-tracer-skeleton — merged 2026-11-10
   - [x] epic-02-newtonian-flight — merged 2026-11-10
   - [x] epic-03-space-arena — merged 2026-11-10
-  - [ ] epic-04-cockpit-hud — pending
+  - [x] epic-04-cockpit-hud — reviewed 2026-11-10
 - [ ] 02-suit-mining — pending
 - [ ] 03-station-refinery — pending
 - [ ] 04-grid-construction — pending

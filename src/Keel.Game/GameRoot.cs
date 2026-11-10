@@ -19,6 +19,7 @@ public partial class GameRoot : Node3D
     private ShipRigNode _shipRig = null!;
     private DebugOverlayNode _debugOverlay = null!;
     private SpaceDustNode _spaceDust = null!;
+    private CockpitHudNode _cockpitHud = null!;
     private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
 
@@ -47,6 +48,9 @@ public partial class GameRoot : Node3D
         _debugOverlay = new DebugOverlayNode();
         AddChild(_debugOverlay);
 
+        _cockpitHud = new CockpitHudNode();
+        AddChild(_cockpitHud);
+
         _spaceDust = new SpaceDustNode();
         AddChild(_spaceDust);
 
@@ -72,6 +76,9 @@ public partial class GameRoot : Node3D
         if (_inputReader.ConsumeDampenerToggle())
         {
             _shipRig.DampenersEnabled = !_shipRig.DampenersEnabled;
+            _cockpitHud.InfoLog.Push(_shipRig.DampenersEnabled
+                ? "DMP: INERTIAL DAMPENERS ON"
+                : "DMP: INERTIAL DAMPENERS OFF");
         }
     }
 
@@ -108,6 +115,19 @@ public partial class GameRoot : Node3D
 
         _debugOverlay.Render(in snapshot);
         _spaceDust.UpdateDust(_shipRig.CockpitCamera.GlobalPosition);
+
+        Basis worldToLocal = _shipRig.GlobalBasis.Transposed();
+        Vector3 localLin = worldToLocal * linVel;
+        bool isAtBoundary = pos.Length() >= Keel.Sim.Arena.SpaceArenaLayout.SoftBoundaryRadius;
+
+        _cockpitHud.UpdateHud(
+            new SimVector3(localLin.X, localLin.Y, localLin.Z),
+            new SimVector3(pos.X, pos.Y, pos.Z),
+            linVel.Length(),
+            CurrentTuning,
+            _shipRig.DampenersEnabled,
+            isAtBoundary,
+            _shipRig.CockpitCamera.Fov);
     }
 
     private void LoadInitialConfig()
@@ -156,6 +176,7 @@ public partial class GameRoot : Node3D
         {
             _lastObservedWriteUtc = confirmedWriteUtc;
             _tuningSession.ApplyReload(json);
+            _cockpitHud.InfoLog.Push("CFG: TUNING RELOADED");
         }
     }
 

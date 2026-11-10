@@ -12,6 +12,8 @@ public sealed class ShipInputReader
     private bool _pendingRecaptureClick;
     private bool _pendingDampenerToggle;
     private bool _pendingInteractToggle;
+    private bool _pendingDepositToggle;
+    private bool _pendingWithdrawToggle;
     private int? _pendingSlotSelection;
 
     public void HandleInputEvent(InputEvent @event, bool isMouseCaptured)
@@ -30,6 +32,14 @@ public sealed class ShipInputReader
             else if (key == Key.F)
             {
                 _pendingInteractToggle = true;
+            }
+            else if (key == Key.E)
+            {
+                _pendingDepositToggle = true;
+            }
+            else if (key == Key.R)
+            {
+                _pendingWithdrawToggle = true;
             }
             else if (key is Key.Key1 or Key.Kp1)
             {
@@ -90,6 +100,20 @@ public sealed class ShipInputReader
         return toggled;
     }
 
+    public bool ConsumeDepositToggle()
+    {
+        bool toggled = _pendingDepositToggle;
+        _pendingDepositToggle = false;
+        return toggled;
+    }
+
+    public bool ConsumeWithdrawToggle()
+    {
+        bool toggled = _pendingWithdrawToggle;
+        _pendingWithdrawToggle = false;
+        return toggled;
+    }
+
     public int? ConsumeSlotSelection()
     {
         int? slot = _pendingSlotSelection;
@@ -100,8 +124,14 @@ public sealed class ShipInputReader
     public bool IsFireHeld(bool isMouseCaptured) =>
         isMouseCaptured && Godot.Input.IsMouseButtonPressed(MouseButton.Left);
 
-    public FlightInput ConsumeFlightInput(bool isMouseCaptured)
+    public FlightInput ConsumeFlightInput(bool isMouseCaptured, bool isModalActive = false)
     {
+        if (isModalActive)
+        {
+            _accumulatedMouseDelta = SimVector2.Zero;
+            return FlightInput.Zero;
+        }
+
         SimVector2 mouseDelta = isMouseCaptured ? _accumulatedMouseDelta : SimVector2.Zero;
         _accumulatedMouseDelta = SimVector2.Zero;
 

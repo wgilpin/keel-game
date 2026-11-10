@@ -9,6 +9,7 @@ using Keel.Game.World;
 using Keel.Sim.Config;
 using Keel.Sim.Flight;
 using Keel.Sim.Grid;
+using Keel.Sim.Hud;
 using Keel.Sim.Inventory;
 using Keel.Sim.Mining;
 using Keel.Sim.Pilot;
@@ -30,6 +31,7 @@ public partial class GameRoot : Node3D
     private CockpitHudNode _cockpitHud = null!;
     private SuitVisorHudNode _suitVisorHud = null!;
     private StationGridNode _stationNode = null!;
+    private RefineryTerminalNode _refineryTerminal = null!;
     private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
     private readonly PilotModeStateMachine _pilotModeMachine = new();
@@ -44,6 +46,7 @@ public partial class GameRoot : Node3D
     private Int3? _targetedGridCell;
     private BlockType _targetedBlockType = BlockType.None;
     private float _targetedStationDistance = float.MaxValue;
+    private bool _isRefineryOpen;
 
     public TuningConfig CurrentTuning => _tuningSession.Current;
     public PilotMode CurrentPilotMode => _pilotModeMachine.CurrentMode;
@@ -75,6 +78,12 @@ public partial class GameRoot : Node3D
         AddChild(_suitVisorHud);
         _suitVisorHud.Visible = false;
 
+        _refineryTerminal = new RefineryTerminalNode();
+        _refineryTerminal.DepositRequested += HandleRefineryDeposit;
+        _refineryTerminal.WithdrawRequested += HandleRefineryWithdraw;
+        _refineryTerminal.CloseRequested += CloseRefineryTerminal;
+        AddChild(_refineryTerminal);
+
         _spaceDust = new SpaceDustNode();
         AddChild(_spaceDust);
 
@@ -85,6 +94,27 @@ public partial class GameRoot : Node3D
     {
         bool isCaptured = Godot.Input.MouseMode == Godot.Input.MouseModeEnum.Captured;
         _inputReader.HandleInputEvent(@event, isCaptured);
+
+        if (_isRefineryOpen)
+        {
+            if (_inputReader.ConsumeInteractToggle() || _inputReader.ConsumeMouseCaptureToggle())
+            {
+                CloseRefineryTerminal();
+                return;
+            }
+
+            if (_inputReader.ConsumeDepositToggle())
+            {
+                HandleRefineryDeposit();
+            }
+            else if (_inputReader.ConsumeWithdrawToggle())
+            {
+                HandleRefineryWithdraw();
+            }
+
+            _inputReader.ConsumeMouseRecaptureClick();
+            return;
+        }
 
         if (_inputReader.ConsumeMouseCaptureToggle())
         {
@@ -141,6 +171,14 @@ public partial class GameRoot : Node3D
                 _cockpitHud.Visible = false;
                 _suitVisorHud.Visible = true;
             }
+            else if (_isRefineryOpen)
+            {
+                CloseRefineryTerminal();
+            }
+            else if (_targetedBlockType == BlockType.Refinery && _targetedStationDistance <= CurrentTuning.RefineryInteractRange)
+            {
+                OpenRefineryTerminal();
+            }
             else if (_pilotModeMachine.Mode == PilotMode.FloatingInSuit)
             {
                 // Try to board ship if within interact range
@@ -162,8 +200,22 @@ public partial class GameRoot : Node3D
             }
         }
 
+        // Auto-close refinery terminal if drifted past tether limit
+        if (_isRefineryOpen && _stationNode != null)
+        {
+            Vector3 refineryWorldPos = _stationNode.GlobalPosition + new Vector3(0f, 0f, 3f * 2.5f);
+            float distToRefinery = _suitRig.GlobalPosition.DistanceTo(refineryWorldPos);
+            if (distToRefinery > CurrentTuning.RefineryInteractRange + 1.5f)
+            {
+                CloseRefineryTerminal();
+            }
+        }
+
         // Step station refinery continuously in physics process
-        RefinerySim.Step(_stationNode.Refinery, CurrentTuning, (float)delta);
+        if (_stationNode != null)
+        {
+            RefinerySim.Step(_stationNode.Refinery, CurrentTuning, (float)delta);
+        }
 
         // Apply physics flight step
         if (_pilotModeMachine.Mode == PilotMode.SeatedInCockpit)
@@ -181,7 +233,7 @@ public partial class GameRoot : Node3D
             // Unmanned ship continues dampening and boundary enforcement
             _shipRig.ApplyFlightStep(FlightInput.Zero, CurrentTuning, (float)delta);
 
-            FlightInput suitInput = _inputReader.ConsumeFlightInput(isCaptured);
+            FlightInput suitInput = _inputReader.ConsumeFlightInput(isCaptured, isModalActive: _isRefineryOpen);
             _suitRig.ApplyFlightStep(in suitInput, CurrentTuning, (float)delta);
 
             // Forward raycast from SuitCamera out to 25m, excluding suit collider
@@ -209,7 +261,7 @@ public partial class GameRoot : Node3D
                 var colliderObj = (GodotObject)hit["collider"];
                 targetedDeposit = colliderObj as OreDepositNode ?? (colliderObj as Node)?.GetParent<OreDepositNode>();
 
-                if (_stationNode.ResolveRaycastHit(targetHitPos, hitNormal, out Int3 cell, out BlockType bType))
+                if (_stationNode != null && _stationNode.ResolveRaycastHit(targetHitPos, hitNormal, out Int3 cell, out BlockType bType))
                 {
                     _targetedGridCell = cell;
                     _targetedBlockType = bType;
@@ -218,7 +270,7 @@ public partial class GameRoot : Node3D
             }
 
             _isAimingAtDeposit = targetedDeposit != null;
-            bool isFiring = _inputReader.IsFireHeld(isCaptured);
+            bool isFiring = !_isRefineryOpen && _inputReader.IsFireHeld(isCaptured);
             int activeSlot = _suitVisorHud.CurrentActiveSlot;
 
             _lastDrillResult = DrillSim.Step(
@@ -316,7 +368,41 @@ public partial class GameRoot : Node3D
                 isAimingAtDeposit: _isAimingAtDeposit,
                 targetedBlockType: _targetedBlockType,
                 targetedBlockDistance: _targetedStationDistance);
+
+            if (_isRefineryOpen)
+            {
+                var vm = RefineryTerminalModel.Compute(
+                    _stationNode.Refinery,
+                    _pilotModeMachine.SuitInventory,
+                    _isRefineryOpen,
+                    CurrentTuning.RefineryCycleSeconds);
+                _refineryTerminal.UpdateTerminal(in vm);
+            }
         }
+    }
+
+    private void OpenRefineryTerminal()
+    {
+        _isRefineryOpen = true;
+        _refineryTerminal.Visible = true;
+        Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Visible;
+    }
+
+    private void CloseRefineryTerminal()
+    {
+        _isRefineryOpen = false;
+        _refineryTerminal.Visible = false;
+        Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Captured;
+    }
+
+    private void HandleRefineryDeposit()
+    {
+        RefinerySim.DepositFromSuit(_stationNode.Refinery, _pilotModeMachine.SuitInventory);
+    }
+
+    private void HandleRefineryWithdraw()
+    {
+        RefinerySim.WithdrawToSuit(_stationNode.Refinery, _pilotModeMachine.SuitInventory);
     }
 
     private void LoadInitialConfig()

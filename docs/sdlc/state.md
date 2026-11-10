@@ -33,7 +33,7 @@ Updated: 2026-11-10
 - [ ] 03-station-refinery — in progress
   - [x] epic-01-station-block-grid — merged 2026-11-10
   - [x] epic-02-refinery-conversion — merged 2026-11-10
-  - [ ] epic-03-refinery-terminal — pending
+  - [x] epic-03-refinery-terminal — reviewed 2026-11-10
 - [ ] 04-grid-construction — pending
 
 ## Notes for a fresh session

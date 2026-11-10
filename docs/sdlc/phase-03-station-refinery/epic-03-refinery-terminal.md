@@ -40,3 +40,62 @@ Jetting within `refineryInteractRange` (`5.0 m`) of the station's amber-trimmed 
   - `Esc` and `F` close the terminal and set `Godot.Input.MouseMode = Captured` instead of toggling pause mouse release.
   - `LMB` clicks while `IsRefineryOpen == true` must NOT trigger `ConsumeMouseRecaptureClick()` (so clicking Deposit/Withdraw/Close buttons with the visible cursor works cleanly) and must NOT fire the suit drill.
   - Discrete `E` (`Deposit`) and `R` (`Withdraw`) key presses (`Pressed: true, Echo: false`) trigger transfers while `ConsumeFlightInput` is ignored (`FlightInput.Zero` passed to `SuitRigNode.ApplyFlightStep` so `Z` dampeners remain active).
+
+---
+
+## Build note — 2026-11-10
+
+**Result:** green
+
+### Tasks done
+
+- Implemented `RefineryTerminalModel` in `Keel.Sim.Hud` calculating `RefineryTerminalViewModel` with capacity limits, status messages, cycle progress normalization, and deposit/withdraw availability.
+- Updated `ShipInputReader` in `Keel.Game.Input` to capture `E` (deposit) and `R` (withdraw) toggles and mask flight input to zero when modal active.
+- Implemented `RefineryTerminalNode` in `Keel.Game.UI` with dimming backdrop, slate-cyan industrial card styling (`#101A26` / `#16222F` / `#2B4257`), input/output row cards, amber progress bar, suit inventory summary, and single-key/click controls.
+- Updated `GameRoot` with modal open/close lifecycle, tether range auto-close (`refineryInteractRange + 1.5m`), flight/drill input masking, deposit/withdraw transfers, and terminal view model updates.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Refinery/RefineryTerminalTests.cs`
+  - `RefineryTerminalTests.InteractAndCancel_PrioritizeRefineryOpenCloseOverShipBoardingAndAutoCloseOutOfTether` (proves AC-1)
+  - `RefineryTerminalTests.ModalSession_MasksFlightAndDrillWhileAllowingDepositWithdrawAndBackgroundRefining` (proves AC-2)
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Summary: `Passed! - Failed: 0, Passed: 28, Skipped: 0, Total: 28, Duration: 33 ms - Keel.Sim.Tests.dll (net8.0)` (with `Keel.Game` compiled cleanly)
+
+### Deviations from the plan
+
+None.
+
+### Follow-ups
+
+None.
+
+---
+
+## Review — 2026-11-10
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `RefineryTerminalTests.InteractAndCancel_PrioritizeRefineryOpenCloseOverShipBoardingAndAutoCloseOutOfTether` |
+| AC-2 | yes | `RefineryTerminalTests.ModalSession_MasksFlightAndDrillWhileAllowingDepositWithdrawAndBackgroundRefining` |
+
+### Drift
+
+None
+
+### Findings
+
+None
+
+### Follow-ups
+
+None
+
+

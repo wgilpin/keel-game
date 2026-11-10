@@ -23,7 +23,7 @@ Updated: 2026-11-10
 
 - [ ] 01-cockpit-flight — in progress
   - [x] epic-01-tracer-skeleton — merged 2026-11-10
-  - [x] epic-02-newtonian-flight — reviewed 2026-11-10
+  - [x] epic-02-newtonian-flight — merged 2026-11-10
   - [ ] epic-03-space-arena — pending
   - [ ] epic-04-cockpit-hud — pending
 - [ ] 02-suit-mining — pending

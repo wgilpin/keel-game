@@ -1,0 +1,25 @@
+; Engine configuration file.
+; Best edited using the editor UI and not directly.
+
+config_version=5
+
+[application]
+
+config/name="Keel"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[dotnet]
+
+project/assembly_name="Keel.Game"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"

@@ -1,0 +1,12 @@
+# Godot 4+
+.godot/
+.import/
+export_presets.cfg
+
+# .NET / C#
+bin/
+obj/
+.vs/
+*.user
+*.suo
+TestResults/

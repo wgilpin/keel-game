@@ -332,4 +332,81 @@ public sealed class SuitVisorHudTests
         Assert.False(outOfRange.CanBoardShip);
         Assert.Null(outOfRange.BoardingPrompt);
     }
+
+    [Fact]
+    public void VisorModel_PrioritizesRefineryPromptsAndOutOfRangeStates()
+    {
+        const int cargoCapacity = 50;
+        const float shipRange = 6.0f;
+        const float refineryRange = 5.0f;
+
+        // 1. Aiming at Refinery within refineryRange (3.0m <= 5.0m)
+        // Even when in ship range (4.0m <= 6.0m), Refinery prompt takes precedence
+        SuitVisorState refineryClose = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 4.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 1.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 0,
+            targetedBlockType: Keel.Sim.Grid.BlockType.Refinery,
+            targetedBlockDistance: 3.0f,
+            refineryInteractRange: refineryRange);
+
+        Assert.True(refineryClose.CanOpenRefinery);
+        Assert.Equal("[F] Open Refinery", refineryClose.PromptText);
+
+        // 2. Aiming at Refinery out of range (8.0m > 5.0m, within 25m)
+        SuitVisorState refineryFar = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 1.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 0,
+            targetedBlockType: Keel.Sim.Grid.BlockType.Refinery,
+            targetedBlockDistance: 8.0f,
+            refineryInteractRange: refineryRange);
+
+        Assert.False(refineryFar.CanOpenRefinery);
+        Assert.Equal("OUT OF RANGE", refineryFar.PromptText);
+
+        // 3. Aiming at ArmorBlock does not trigger refinery prompt, falls back to Board Ship if in ship range
+        SuitVisorState armorClose = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 4.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 1.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 0,
+            targetedBlockType: Keel.Sim.Grid.BlockType.ArmorBlock,
+            targetedBlockDistance: 3.0f,
+            refineryInteractRange: refineryRange);
+
+        Assert.False(armorClose.CanOpenRefinery);
+        Assert.Equal("[F] Board Ship", armorClose.PromptText);
+
+        // 4. Slot 2 selected with 0 steel blocks and no target: prompt informs player to refine ore
+        SuitVisorState slot2Empty = SuitVisorModel.Compute(
+            currentSlot: 2,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 1.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 0);
+
+        Assert.Equal("NO STEEL BLOCKS — REFINE ORE AT STATION", slot2Empty.PromptText);
+    }
 }

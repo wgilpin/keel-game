@@ -32,7 +32,7 @@ Updated: 2026-11-10
   - [x] epic-03-asteroid-mining — merged 2026-11-10
 - [ ] 03-station-refinery — in progress
   - [x] epic-01-station-block-grid — merged 2026-11-10
-  - [ ] epic-02-refinery-conversion — pending
+  - [x] epic-02-refinery-conversion — reviewed 2026-11-10
   - [ ] epic-03-refinery-terminal — pending
 - [ ] 04-grid-construction — pending
 

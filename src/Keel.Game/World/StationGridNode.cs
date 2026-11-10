@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using Keel.Sim.Arena;
 using Keel.Sim.Grid;
+using Keel.Sim.Refinery;
 using SimVector3 = System.Numerics.Vector3;
 
 namespace Keel.Game.World;
@@ -19,9 +20,11 @@ public partial class StationGridNode : Node3D
     private readonly BlockGrid _grid;
     private StaticBody3D _staticBody = null!;
     private readonly Dictionary<Int3, Node3D> _blockVisuals = new();
+    private readonly RefineryState _refinery = new();
 
     public BlockGrid Grid => _grid;
     public StaticBody3D StaticBody => _staticBody;
+    public RefineryState Refinery => _refinery;
 
     public StationGridNode(BlockGrid? initialGrid = null)
     {

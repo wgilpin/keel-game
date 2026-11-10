@@ -15,7 +15,11 @@ public sealed record TuningConfig(
     float ShipInteractRange = 6.0f,
     float DrillRange = 5.0f,
     float DrillRate = 1.5f,
-    float SuitCargoCapacity = 50.0f)
+    float SuitCargoCapacity = 50.0f,
+    float RefineryCycleSeconds = 2.0f,
+    float RefineryOrePerBlock = 2.0f,
+    float RefineryInteractRange = 5.0f,
+    float RefineryBufferCapacity = 100.0f)
 {
     public static TuningConfig Default { get; } = new(
         ShipMass: 1200.0f,
@@ -32,5 +36,9 @@ public sealed record TuningConfig(
         ShipInteractRange: 6.0f,
         DrillRange: 5.0f,
         DrillRate: 1.5f,
-        SuitCargoCapacity: 50.0f);
+        SuitCargoCapacity: 50.0f,
+        RefineryCycleSeconds: 2.0f,
+        RefineryOrePerBlock: 2.0f,
+        RefineryInteractRange: 5.0f,
+        RefineryBufferCapacity: 100.0f);
 }

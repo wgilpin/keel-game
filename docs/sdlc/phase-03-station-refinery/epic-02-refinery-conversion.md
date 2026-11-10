@@ -46,3 +46,68 @@
 - Reuse `Keel.Sim.Inventory.Inventory` (`SuitInventory`) for `RefineryState.InputInventory` and `RefineryState.OutputInventory` so capacity invariants live in one place.
 - Step `RefinerySim.Step(Station.Refinery, CurrentTuning, (float)delta)` unconditionally inside `GameRoot._PhysicsProcess` regardless of `PilotMode`, so ore deposited in `epic-03` continues refining if the player boards the ship or flies back toward the asteroid.
 - When the player aims directly at `BlockType.Refinery` within `refineryInteractRange`, `[F] Open Refinery` takes priority over `[F] Board Ship` even if the ship is parked within `shipInteractRange` (`6.0 m`), matching the `F`-key priority `epic-03` will execute.
+
+---
+
+## Build note — 2026-11-10
+
+**Result:** green
+
+### Tasks done
+
+- Added Phase 03 refinery tuning parameters (`refineryCycleSeconds`: 2.0, `refineryOrePerBlock`: 2.0, `refineryInteractRange`: 5.0, `refineryBufferCapacity`: 100.0) to `config/tuning.json`, `TuningConfig`, and `TuningConfigLoader`.
+- Implemented `RefineryState` and `RefinerySim` in `Keel.Sim.Refinery` supporting fractional progress accumulation, multi-cycle conversion, ore conservation during starved or output-full stalls, and item-filtered deposits/withdrawals.
+- Updated `SuitVisorModel` to prioritize `[F] Open Refinery` and `OUT OF RANGE` prompt states when aiming at refinery blocks, and surface `NO STEEL BLOCKS — REFINE ORE AT STATION` when hotbar slot `[2]` is empty.
+- Attached `RefineryState` to `StationGridNode` and stepped `RefinerySim.Step` continuously in `GameRoot._PhysicsProcess`.
+- Updated `SuitVisorHudNode` and `GameRoot` to stream targeted block type and distance to the visor HUD.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Config/TuningConfigTests.cs`
+  - `TuningConfigTests.LoadOrFallback_ValidatesRefineryParametersWithSafeFallback` (proves AC-1)
+- `tests/Keel.Sim.Tests/Refinery/RefinerySimTests.cs`
+  - `RefinerySimTests.Step_ConvertsOreAcrossFractionalAndMultiCycleTicksAndStallsWhenStarvedOrOutputFull` (proves AC-2)
+  - `RefinerySimTests.DepositAndWithdraw_RespectItemFiltersAndBothInventoryCapacities` (proves AC-3)
+- `tests/Keel.Sim.Tests/Hud/SuitVisorHudTests.cs`
+  - `SuitVisorHudTests.VisorModel_PrioritizesRefineryPromptsAndOutOfRangeStates` (proves AC-3)
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Summary: `Passed! - Failed: 0, Passed: 26, Skipped: 0, Total: 26, Duration: 37 ms - Keel.Sim.Tests.dll (net8.0)` (with `Keel.Game` compiled cleanly)
+
+### Deviations from the plan
+
+None.
+
+### Follow-ups
+
+None.
+
+---
+
+## Review — 2026-11-10
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `TuningConfigTests.LoadOrFallback_ValidatesRefineryParametersWithSafeFallback` |
+| AC-2 | yes | `RefinerySimTests.Step_ConvertsOreAcrossFractionalAndMultiCycleTicksAndStallsWhenStarvedOrOutputFull` |
+| AC-3 | yes | `RefinerySimTests.DepositAndWithdraw_RespectItemFiltersAndBothInventoryCapacities`, `SuitVisorHudTests.VisorModel_PrioritizesRefineryPromptsAndOutOfRangeStates` |
+
+### Drift
+
+None
+
+### Findings
+
+None
+
+### Follow-ups
+
+None
+
+

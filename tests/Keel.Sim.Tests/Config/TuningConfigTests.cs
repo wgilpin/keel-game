@@ -144,4 +144,46 @@ public sealed class TuningConfigTests
         Assert.False(string.IsNullOrWhiteSpace(invalidSpeedResult.ErrorMessage));
         Assert.Equal(fallback, invalidSpeedResult.Config);
     }
+
+    [Fact]
+    public void LoadOrFallback_ValidatesRefineryParametersWithSafeFallback()
+    {
+        const string validJson = """
+        {
+          "refineryCycleSeconds": 2.5,
+          "refineryOrePerBlock": 3.0,
+          "refineryInteractRange": 6.5,
+          "refineryBufferCapacity": 120.0
+        }
+        """;
+
+        var loaded = TuningConfigLoader.LoadOrFallback(validJson, TuningConfig.Default);
+        Assert.True(loaded.IsSuccess);
+        Assert.Null(loaded.ErrorMessage);
+        Assert.Equal(2.5f, loaded.Config.RefineryCycleSeconds);
+        Assert.Equal(3.0f, loaded.Config.RefineryOrePerBlock);
+        Assert.Equal(6.5f, loaded.Config.RefineryInteractRange);
+        Assert.Equal(120.0f, loaded.Config.RefineryBufferCapacity);
+
+        // Non-positive or invalid refinery values trigger safe fallback
+        const string invalidCycleJson = """
+        {
+          "refineryCycleSeconds": -1.0
+        }
+        """;
+
+        var fallback = loaded.Config;
+        var invalidCycle = TuningConfigLoader.LoadOrFallback(invalidCycleJson, fallback);
+        Assert.False(invalidCycle.IsSuccess);
+        Assert.Equal(fallback, invalidCycle.Config);
+
+        const string zeroCapacityJson = """
+        {
+          "refineryBufferCapacity": 0.0
+        }
+        """;
+        var invalidCap = TuningConfigLoader.LoadOrFallback(zeroCapacityJson, fallback);
+        Assert.False(invalidCap.IsSuccess);
+        Assert.Equal(fallback, invalidCap.Config);
+    }
 }

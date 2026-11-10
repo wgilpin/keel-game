@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Keel.Sim.Grid;
 
 namespace Keel.Sim.Hud;
 
@@ -20,7 +21,9 @@ public readonly record struct SuitVisorState(
     string? BoardingPrompt,
     float SpeedMetersPerSecond,
     bool DampenersEnabled,
-    IReadOnlyList<HotbarSlot> Slots);
+    IReadOnlyList<HotbarSlot> Slots,
+    bool CanOpenRefinery = false,
+    string? PromptText = null);
 
 public static class SuitVisorModel
 {
@@ -37,7 +40,10 @@ public static class SuitVisorModel
         float shipInteractRange,
         float currentSpeed,
         bool dampenersEnabled,
-        int steelBlockCount = 0)
+        int steelBlockCount = 0,
+        BlockType targetedBlockType = BlockType.None,
+        float targetedBlockDistance = float.MaxValue,
+        float refineryInteractRange = 5.0f)
     {
         // 1. Hotbar slot clamping / preservation
         int activeSlot = currentSlot;
@@ -64,9 +70,31 @@ public static class SuitVisorModel
 
         bool isCargoFull = cargoCapacity > 0 && cargoCount >= cargoCapacity;
 
-        // 3. Boarding prompt gating
+        // 3. Prompt prioritization
         bool canBoard = suitToShipDistance <= shipInteractRange;
-        string? prompt = canBoard ? "[F] Board Ship" : null;
+        bool canOpenRefinery = false;
+        string? prompt = null;
+
+        if (targetedBlockType == BlockType.Refinery)
+        {
+            if (targetedBlockDistance <= refineryInteractRange)
+            {
+                canOpenRefinery = true;
+                prompt = "[F] Open Refinery";
+            }
+            else if (targetedBlockDistance <= 25.0f)
+            {
+                prompt = "OUT OF RANGE";
+            }
+        }
+        else if (canBoard)
+        {
+            prompt = "[F] Board Ship";
+        }
+        else if (activeSlot == 2 && steelBlockCount == 0)
+        {
+            prompt = "NO STEEL BLOCKS — REFINE ORE AT STATION";
+        }
 
         // 4. Hotbar slot items: [1] Drill, [2] Steel Block, [3]–[5] Empty
         var slots = new[]
@@ -88,6 +116,8 @@ public static class SuitVisorModel
             BoardingPrompt: prompt,
             SpeedMetersPerSecond: currentSpeed,
             DampenersEnabled: dampenersEnabled,
-            Slots: slots);
+            Slots: slots,
+            CanOpenRefinery: canOpenRefinery,
+            PromptText: prompt);
     }
 }

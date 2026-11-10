@@ -13,5 +13,9 @@
   "shipInteractRange": 6.0,
   "drillRange": 5.0,
   "drillRate": 1.5,
-  "suitCargoCapacity": 50.0
+  "suitCargoCapacity": 50.0,
+  "refineryCycleSeconds": 2.0,
+  "refineryOrePerBlock": 2.0,
+  "refineryInteractRange": 5.0,
+  "refineryBufferCapacity": 100.0
 }

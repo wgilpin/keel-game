@@ -22,7 +22,7 @@ Updated: 2026-11-10
 ## Phases
 
 - [ ] 01-cockpit-flight — in progress
-  - [x] epic-01-tracer-skeleton — reviewed 2026-11-10
+  - [x] epic-01-tracer-skeleton — merged 2026-11-10
   - [ ] epic-02-newtonian-flight — pending
   - [ ] epic-03-space-arena — pending
   - [ ] epic-04-cockpit-hud — pending

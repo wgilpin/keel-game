@@ -101,7 +101,16 @@ public partial class GameRoot : Node3D
             return;
         }
 
-        DateTime currentWriteUtc = File.GetLastWriteTimeUtc(_configPath);
+        DateTime currentWriteUtc;
+        try
+        {
+            currentWriteUtc = File.GetLastWriteTimeUtc(_configPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
         if (currentWriteUtc <= _lastObservedWriteUtc)
         {
             return;
@@ -130,9 +139,9 @@ public partial class GameRoot : Node3D
             content = File.ReadAllText(path);
             return true;
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Editor may still hold a transient write lock mid-save; retry on next poll.
+            // Editor may hold a transient lock or atomic-replace handle mid-save; retry on next poll.
             return false;
         }
     }

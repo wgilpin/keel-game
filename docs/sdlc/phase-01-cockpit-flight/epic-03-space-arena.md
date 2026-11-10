@@ -40,3 +40,62 @@ Flying the ship now has clear spatial and motion cues in 3D grey-box space. Dark
 
 - Use the exact 3D readability tokens from [design.md](../../design.md): space backdrop `#05070B`, directional sun `#FFF6E5` (`1.2` energy), ambient sky fill `#1E293B` (`0.35` energy), ship canopy struts `#0F172A`, station landmark `#64748B` with `#F59E0B` port accent, asteroid landmark `#27272A`, and space-dust particles `#CBD5E1` (35% alpha).
 - Give both the station and asteroid `StaticBody3D` Jolt colliders so flying into them collides physically. Do not write tests asserting static constant landmark coordinates (`CLAUDE.md`).
+
+
+---
+
+## Build note — 2026-11-10
+
+**Result:** green
+
+### Tasks done
+
+- Implemented `ArenaBoundary.Evaluate` and `SpaceArenaLayout` in `Keel.Sim.Arena` to enforce the 20 km origin sphere, stripping outward radial velocity while preserving tangential and inward drift.
+- Implemented `SpaceDustField` in `Keel.Sim.Arena` providing zero-allocation Euclidean modulo wrapping of 20 m cube particle positions around arbitrary positive and negative camera coordinates.
+- Implemented `SpaceEnvironmentBuilder` (`#05070B` backdrop, `#FFF6E5` 1.2 energy directional sun, and `#1E293B` 0.35 energy ambient sky fill) and `LandmarkBuilder` (Station `#64748B` with amber docking port and Asteroid `#27272A`, both with Jolt `StaticBody3D` colliders).
+- Implemented `CockpitCanopyBuilder` (dark `#0F172A` 3D canopy struts framing the cockpit camera) and `SpaceDustNode` (MultiMeshInstance3D `#CBD5E1` 35% alpha dust particles), wired into `GameRoot.cs` and `ShipRigNode.cs`.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Arena/SpaceArenaTests.cs`
+  - `SpaceArenaTests.Boundary_ClampsOutwardMotionBeyond20Km`
+  - `SpaceArenaTests.DustField_EuclideanWrapsAcrossNegativeAndPositiveCoords`
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Summary: `Passed! - Failed: 0, Passed: 7, Skipped: 0, Total: 7, Duration: 26 ms - Keel.Sim.Tests.dll (net8.0)` (with `Keel.Game` compiled cleanly via `BuildGameDuringTest`)
+
+### Deviations from the plan
+
+None.
+
+### Follow-ups
+
+- Playtest visual readability of space-dust streaks and landmark approach in Godot editor (`F5`).
+
+
+---
+
+## Review — 2026-11-10
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `SpaceArenaTests.Boundary_ClampsOutwardMotionBeyond20Km` |
+| AC-2 | yes | `SpaceArenaTests.DustField_EuclideanWrapsAcrossNegativeAndPositiveCoords` |
+
+### Drift
+
+None
+
+### Findings
+
+None. (`Keel.Sim` remains free of `GodotSharp`, `ArenaBoundary.Evaluate` safely guards small distance division, and `SpaceDustField.WrapToCameraBox` operates with zero runtime heap allocations.)
+
+### Follow-ups
+
+None

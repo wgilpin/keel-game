@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using Keel.Sim.Arena;
 using Keel.Sim.Config;
 using Keel.Sim.Flight;
 using SimVector3 = System.Numerics.Vector3;
@@ -34,6 +35,7 @@ public partial class ShipRigNode : RigidBody3D
             Current = true,
             Position = new Vector3(0.0f, 0.35f, -0.6f),
         };
+        CockpitCamera.AddChild(CockpitCanopyBuilder.CreateCanopy());
         AddChild(CockpitCamera);
 
         SyncMassAndInertia(TuningConfig.Default.ShipMass);
@@ -56,6 +58,13 @@ public partial class ShipRigNode : RigidBody3D
 
         ApplyCentralForce(GlobalBasis * ToGodot(step.Force));
         ApplyTorque(GlobalBasis * ToGodot(step.Torque));
+
+        var boundEval = ArenaBoundary.Evaluate(ToSim(GlobalPosition), ToSim(LinearVelocity));
+        if (boundEval.IsAtOrBeyondBoundary)
+        {
+            GlobalPosition = ToGodot(boundEval.Position);
+            LinearVelocity = ToGodot(boundEval.Velocity);
+        }
     }
 
     private void SyncMassAndInertia(float configuredMass)

@@ -30,10 +30,10 @@ Updated: 2026-11-10
   - [x] epic-01-suit-eva — merged 2026-11-10
   - [x] epic-02-suit-visor-hud — merged 2026-11-10
   - [x] epic-03-asteroid-mining — merged 2026-11-10
-- [ ] 03-station-refinery — in progress
+- [x] 03-station-refinery — done
   - [x] epic-01-station-block-grid — merged 2026-11-10
   - [x] epic-02-refinery-conversion — merged 2026-11-10
-  - [x] epic-03-refinery-terminal — reviewed 2026-11-10
+  - [x] epic-03-refinery-terminal — merged 2026-11-10
 - [ ] 04-grid-construction — pending
 
 ## Notes for a fresh session

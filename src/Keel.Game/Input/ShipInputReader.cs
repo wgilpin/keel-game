@@ -12,6 +12,7 @@ public sealed class ShipInputReader
     private bool _pendingRecaptureClick;
     private bool _pendingDampenerToggle;
     private bool _pendingInteractToggle;
+    private int? _pendingSlotSelection;
 
     public void HandleInputEvent(InputEvent @event, bool isMouseCaptured)
     {
@@ -29,6 +30,26 @@ public sealed class ShipInputReader
             else if (key == Key.F)
             {
                 _pendingInteractToggle = true;
+            }
+            else if (key is Key.Key1 or Key.Kp1)
+            {
+                _pendingSlotSelection = 1;
+            }
+            else if (key is Key.Key2 or Key.Kp2)
+            {
+                _pendingSlotSelection = 2;
+            }
+            else if (key is Key.Key3 or Key.Kp3)
+            {
+                _pendingSlotSelection = 3;
+            }
+            else if (key is Key.Key4 or Key.Kp4)
+            {
+                _pendingSlotSelection = 4;
+            }
+            else if (key is Key.Key5 or Key.Kp5)
+            {
+                _pendingSlotSelection = 5;
             }
         }
         else if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } && !isMouseCaptured)
@@ -67,6 +88,13 @@ public sealed class ShipInputReader
         bool toggled = _pendingInteractToggle;
         _pendingInteractToggle = false;
         return toggled;
+    }
+
+    public int? ConsumeSlotSelection()
+    {
+        int? slot = _pendingSlotSelection;
+        _pendingSlotSelection = null;
+        return slot;
     }
 
     public FlightInput ConsumeFlightInput(bool isMouseCaptured)

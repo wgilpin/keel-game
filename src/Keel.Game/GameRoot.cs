@@ -24,6 +24,7 @@ public partial class GameRoot : Node3D
     private DebugOverlayNode _debugOverlay = null!;
     private SpaceDustNode _spaceDust = null!;
     private CockpitHudNode _cockpitHud = null!;
+    private SuitVisorHudNode _suitVisorHud = null!;
     private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
     private readonly PilotModeStateMachine _pilotModeMachine = new();
@@ -57,6 +58,10 @@ public partial class GameRoot : Node3D
 
         _cockpitHud = new CockpitHudNode();
         AddChild(_cockpitHud);
+
+        _suitVisorHud = new SuitVisorHudNode();
+        AddChild(_suitVisorHud);
+        _suitVisorHud.Visible = false;
 
         _spaceDust = new SpaceDustNode();
         AddChild(_spaceDust);
@@ -122,6 +127,7 @@ public partial class GameRoot : Node3D
                 _shipRig.CockpitCamera.Current = false;
                 _suitRig.SuitCamera.Current = true;
                 _cockpitHud.Visible = false;
+                _suitVisorHud.Visible = true;
             }
             else if (_pilotModeMachine.Mode == PilotMode.FloatingInSuit)
             {
@@ -137,6 +143,7 @@ public partial class GameRoot : Node3D
                     _shipRig.SetHullVisible(false);
                     _suitRig.SuitCamera.Current = false;
                     _shipRig.CockpitCamera.Current = true;
+                    _suitVisorHud.Visible = false;
                     _cockpitHud.Visible = true;
                     _cockpitHud.InfoLog.Push("PILOT: BOARDED SHIP");
                 }
@@ -205,6 +212,27 @@ public partial class GameRoot : Node3D
                 _shipRig.DampenersEnabled,
                 isAtBoundary,
                 _shipRig.CockpitCamera.Fov);
+        }
+        else
+        {
+            Basis worldToLocal = _suitRig.GlobalBasis.Transposed();
+            Vector3 localLin = worldToLocal * linVel;
+            Basis camBasis = _suitRig.SuitCamera.GlobalBasis;
+            var camRight = new SimVector3(camBasis.X.X, camBasis.X.Y, camBasis.X.Z);
+            var camForward = new SimVector3(-camBasis.Z.X, -camBasis.Z.Y, -camBasis.Z.Z);
+            int? slotInput = _inputReader.ConsumeSlotSelection();
+
+            _suitVisorHud.UpdateHud(
+                new SimVector3(localLin.X, localLin.Y, localLin.Z),
+                new SimVector3(pos.X, pos.Y, pos.Z),
+                camForward,
+                camRight,
+                ToSim(_shipRig.GlobalPosition),
+                linVel.Length(),
+                _suitRig.DampenersEnabled,
+                _suitRig.SuitCamera.Fov,
+                CurrentTuning,
+                slotInput);
         }
     }
 

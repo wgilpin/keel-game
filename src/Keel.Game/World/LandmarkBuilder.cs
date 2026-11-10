@@ -11,68 +11,7 @@ public static class LandmarkBuilder
 
     public static Node3D CreateStation()
     {
-        var root = new Node3D { Name = "StationLandmark" };
-        var simPos = SpaceArenaLayout.StationPosition;
-        root.Position = new Vector3(simPos.X, simPos.Y, simPos.Z);
-
-        var staticBody = new StaticBody3D();
-        root.AddChild(staticBody);
-
-        var armorMaterial = new StandardMaterial3D
-        {
-            AlbedoColor = StationArmorColor,
-            Roughness = 0.6f,
-            Metallic = 0.2f,
-        };
-
-        var portMaterial = new StandardMaterial3D
-        {
-            AlbedoColor = StationPortColor,
-            EmissionEnabled = true,
-            Emission = StationPortColor,
-            EmissionEnergyMultiplier = 0.8f,
-            Roughness = 0.4f,
-        };
-
-        // Main station hub: 20m x 15m x 50m
-        var mainHullMesh = new BoxMesh { Size = new Vector3(20f, 15f, 50f), Material = armorMaterial };
-        var mainMeshInstance = new MeshInstance3D { Mesh = mainHullMesh };
-        staticBody.AddChild(mainMeshInstance);
-
-        var mainShape = new CollisionShape3D
-        {
-            Shape = new BoxShape3D { Size = new Vector3(20f, 15f, 50f) },
-        };
-        staticBody.AddChild(mainShape);
-
-        // Amber docking ring on front face (+Z side of hub)
-        var portMesh = new BoxMesh { Size = new Vector3(8f, 8f, 2f), Material = portMaterial };
-        var portInstance = new MeshInstance3D
-        {
-            Mesh = portMesh,
-            Position = new Vector3(0f, 0f, 26f),
-        };
-        staticBody.AddChild(portInstance);
-
-        var portShape = new CollisionShape3D
-        {
-            Shape = new BoxShape3D { Size = new Vector3(8f, 8f, 2f) },
-            Position = new Vector3(0f, 0f, 26f),
-        };
-        staticBody.AddChild(portShape);
-
-        // Transverse solar/radiator spar: 60m x 2m x 10m
-        var sparMesh = new BoxMesh { Size = new Vector3(60f, 2f, 10f), Material = armorMaterial };
-        var sparInstance = new MeshInstance3D { Mesh = sparMesh };
-        staticBody.AddChild(sparInstance);
-
-        var sparShape = new CollisionShape3D
-        {
-            Shape = new BoxShape3D { Size = new Vector3(60f, 2f, 10f) },
-        };
-        staticBody.AddChild(sparShape);
-
-        return root;
+        return new StationGridNode();
     }
 
     public static Node3D CreateAsteroid()

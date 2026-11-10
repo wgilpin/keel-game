@@ -8,6 +8,7 @@ using Keel.Game.UI;
 using Keel.Game.World;
 using Keel.Sim.Config;
 using Keel.Sim.Flight;
+using Keel.Sim.Grid;
 using Keel.Sim.Inventory;
 using Keel.Sim.Mining;
 using Keel.Sim.Pilot;
@@ -27,6 +28,7 @@ public partial class GameRoot : Node3D
     private SpaceDustNode _spaceDust = null!;
     private CockpitHudNode _cockpitHud = null!;
     private SuitVisorHudNode _suitVisorHud = null!;
+    private StationGridNode _stationNode = null!;
     private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
     private readonly PilotModeStateMachine _pilotModeMachine = new();
@@ -38,6 +40,8 @@ public partial class GameRoot : Node3D
     private float _drillProgress;
     private DrillStepResult _lastDrillResult;
     private bool _isAimingAtDeposit;
+    private Int3? _targetedGridCell;
+    private BlockType _targetedBlockType = BlockType.None;
 
     public TuningConfig CurrentTuning => _tuningSession.Current;
     public PilotMode CurrentPilotMode => _pilotModeMachine.CurrentMode;
@@ -46,7 +50,8 @@ public partial class GameRoot : Node3D
     {
         AddChild(SpaceEnvironmentBuilder.CreateEnvironment());
         AddChild(SpaceEnvironmentBuilder.CreateSunlight());
-        AddChild(LandmarkBuilder.CreateStation());
+        _stationNode = (StationGridNode)LandmarkBuilder.CreateStation();
+        AddChild(_stationNode);
         AddChild(LandmarkBuilder.CreateAsteroid());
 
         _configPath = ResolveConfigPath();
@@ -186,14 +191,23 @@ public partial class GameRoot : Node3D
             OreDepositNode? targetedDeposit = null;
             float targetedDistance = float.MaxValue;
             Vector3 targetHitPos = Vector3.Zero;
+            _targetedGridCell = null;
+            _targetedBlockType = BlockType.None;
 
             var hit = spaceState.IntersectRay(query);
             if (hit.Count > 0)
             {
                 targetHitPos = (Vector3)hit["position"];
+                Vector3 hitNormal = hit.ContainsKey("normal") ? (Vector3)hit["normal"] : Vector3.Up;
                 targetedDistance = camPos.DistanceTo(targetHitPos);
                 var colliderObj = (GodotObject)hit["collider"];
                 targetedDeposit = colliderObj as OreDepositNode ?? (colliderObj as Node)?.GetParent<OreDepositNode>();
+
+                if (_stationNode.ResolveRaycastHit(targetHitPos, hitNormal, out Int3 cell, out BlockType bType))
+                {
+                    _targetedGridCell = cell;
+                    _targetedBlockType = bType;
+                }
             }
 
             _isAimingAtDeposit = targetedDeposit != null;
@@ -247,7 +261,9 @@ public partial class GameRoot : Node3D
             DampenersEnabled: dampeners,
             IsReloadFlashActive: _tuningSession.IsReloadFlashActive,
             LastConfigError: _tuningSession.LastError,
-            Mode: _pilotModeMachine.Mode);
+            Mode: _pilotModeMachine.Mode,
+            TargetGridCell: _targetedGridCell,
+            TargetBlockType: _targetedBlockType);
 
         _debugOverlay.Render(in snapshot);
 

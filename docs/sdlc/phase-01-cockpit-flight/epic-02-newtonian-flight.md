@@ -40,3 +40,63 @@ The player spawns seated in a Jolt `RigidBody3D` ship with zero gravity and zero
 
 - Configure `ShipRigNode` (`RigidBody3D`) with `GravityScale = 0`, `LinearDamp = 0`, `AngularDamp = 0`, and `LinearDampMode = Replace` / `AngularDampMode = Replace` so Jolt applies no hidden drag behind `Keel.Sim`.
 - Capture the mouse cursor (`Input.MouseModeEnum.Captured`) on startup and allow `Esc` to toggle capture while editing `config/tuning.json`.
+
+
+---
+
+## Build note — 2026-11-10
+
+**Result:** green
+
+### Tasks done
+
+- Added engine-free `FlightInput`, `FlightState`, `FlightStepResult`, and `FlightKinematics.Step` in `Keel.Sim.Flight` with diagonal translation normalization, `MouseSensitivity` + `AngularTorque` scaling, and `MaxLinearSpeed` / `MaxAngularSpeed` forward-acceleration clamping that still permits braking and lateral vectoring.
+- Implemented monotonic, zero-overshoot counter-thrust and counter-torque dampeners on uncommanded axes when `DampenersEnabled = true`, and pure Newtonian drift when `DampenersEnabled = false`.
+- Added `ShipInputReader` (`W`/`S`, `A`/`D`, `Space`/`Ctrl`, mouse pitch/yaw, `Q`/`E` roll, `Z` dampeners toggle, `Esc` mouse-capture toggle) and `ShipRigNode` (`RigidBody3D` with zero gravity, `Replace` zero damping, isotropic `ShipMass` inertia, hull collision shape, and cockpit `Camera3D`), wired into `GameRoot` physics and live `F3` telemetry.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Flight/FlightKinematicsTests.cs`
+  - `FlightKinematicsTests.ThrustAndTorque_RespectsNormalizationAndSpeedCaps`
+  - `FlightKinematicsTests.DampenersOff_MaintainsNewtonianDrift`
+  - `FlightKinematicsTests.DampenersOn_StopsWithoutOvershoot`
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Summary: `Passed! - Failed: 0, Passed: 5, Skipped: 0, Total: 5, Duration: 86 ms - Keel.Sim.Tests.dll (net8.0)` (with `Keel.Game` compiled cleanly via `BuildGameDuringTest`)
+
+### Deviations from the plan
+
+None.
+
+### Follow-ups
+
+- Playtest pitch/yaw `MouseSensitivity`, `LinearThrust`, `AngularTorque`, and `DampenerStrength` in Godot once visual landmarks (`epic-03`) are in place so 6DoF inertia is visually readable.
+
+
+---
+
+## Review — 2026-11-10
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `FlightKinematicsTests.ThrustAndTorque_RespectsNormalizationAndSpeedCaps` |
+| AC-2 | yes | `FlightKinematicsTests.DampenersOff_MaintainsNewtonianDrift` |
+| AC-3 | yes | `FlightKinematicsTests.DampenersOn_StopsWithoutOvershoot` |
+
+### Drift
+
+None
+
+### Findings
+
+None. (`Keel.Sim` remains free of `GodotSharp`, `FlightKinematics.Step` guards non-finite/non-positive `deltaSeconds` and `ShipMass`, and `ShipInputReader` handles both embedded-editor click-to-capture and standalone mouse capture without blocking keyboard thrusters.)
+
+### Follow-ups
+
+- Tune `MouseSensitivity`, `LinearThrust`, `AngularTorque`, and `DampenerStrength` in `config/tuning.json` once `epic-03` adds visual landmarks and space-dust cues.

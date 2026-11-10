@@ -97,6 +97,9 @@ public sealed class ShipInputReader
         return slot;
     }
 
+    public bool IsFireHeld(bool isMouseCaptured) =>
+        isMouseCaptured && Godot.Input.IsMouseButtonPressed(MouseButton.Left);
+
     public FlightInput ConsumeFlightInput(bool isMouseCaptured)
     {
         SimVector2 mouseDelta = isMouseCaptured ? _accumulatedMouseDelta : SimVector2.Zero;

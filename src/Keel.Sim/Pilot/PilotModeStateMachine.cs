@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Keel.Sim.Inventory;
 
 namespace Keel.Sim.Pilot;
 
@@ -16,6 +17,15 @@ public sealed class PilotModeStateMachine
     public PilotMode Mode { get; private set; } = PilotMode.SeatedInCockpit;
 
     public PilotMode CurrentMode => Mode;
+
+    public SuitInventory SuitInventory { get; }
+
+    public SuitInventory Inventory => SuitInventory;
+
+    public PilotModeStateMachine(SuitInventory? inventory = null)
+    {
+        SuitInventory = inventory ?? new SuitInventory(50);
+    }
 
     public SuitSpawnState ExitCockpit(
         Vector3 shipPosition,

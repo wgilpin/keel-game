@@ -12,6 +12,10 @@ public partial class SuitRigNode : RigidBody3D
     public Camera3D SuitCamera { get; private set; } = null!;
     public bool DampenersEnabled { get; set; } = true;
 
+    private MeshInstance3D _drillBeamInstance = null!;
+    private ImmediateMesh _drillBeamMesh = null!;
+    private StandardMaterial3D _drillBeamMaterial = null!;
+
     public override void _Ready()
     {
         GravityScale = 0.0f;
@@ -38,6 +42,20 @@ public partial class SuitRigNode : RigidBody3D
         SuitCamera.AddChild(SuitToolMeshBuilder.CreateToolMesh());
         AddChild(SuitCamera);
 
+        _drillBeamMaterial = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = new Color(0xF5 / 255f, 0x9E / 255f, 0x0B / 255f, 1.0f),
+        };
+        _drillBeamMesh = new ImmediateMesh();
+        _drillBeamInstance = new MeshInstance3D
+        {
+            Mesh = _drillBeamMesh,
+            TopLevel = true,
+            Visible = false,
+        };
+        AddChild(_drillBeamInstance);
+
         SyncMassAndInertia(TuningConfig.Default.SuitMass);
         SetActive(false);
     }
@@ -59,7 +77,30 @@ public partial class SuitRigNode : RigidBody3D
         {
             LinearVelocity = Vector3.Zero;
             AngularVelocity = Vector3.Zero;
+            SetDrillBeam(false, Vector3.Zero);
         }
+    }
+
+    public void SetDrillBeam(bool active, Vector3 worldHitPoint)
+    {
+        if (_drillBeamInstance == null)
+        {
+            return;
+        }
+
+        if (!active)
+        {
+            _drillBeamInstance.Visible = false;
+            return;
+        }
+
+        Vector3 toolMuzzle = SuitCamera.GlobalPosition + (SuitCamera.GlobalBasis * new Vector3(0.25f, -0.2f, -0.4f));
+        _drillBeamMesh.ClearSurfaces();
+        _drillBeamMesh.SurfaceBegin(Mesh.PrimitiveType.Lines, _drillBeamMaterial);
+        _drillBeamMesh.SurfaceAddVertex(toolMuzzle);
+        _drillBeamMesh.SurfaceAddVertex(worldHitPoint);
+        _drillBeamMesh.SurfaceEnd();
+        _drillBeamInstance.Visible = true;
     }
 
     public void ApplyFlightStep(in FlightInput input, TuningConfig tuning, float deltaSeconds)

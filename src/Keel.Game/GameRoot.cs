@@ -8,6 +8,8 @@ using Keel.Game.UI;
 using Keel.Game.World;
 using Keel.Sim.Config;
 using Keel.Sim.Flight;
+using Keel.Sim.Inventory;
+using Keel.Sim.Mining;
 using Keel.Sim.Pilot;
 using Keel.Sim.Telemetry;
 using SimQuaternion = System.Numerics.Quaternion;
@@ -33,6 +35,9 @@ public partial class GameRoot : Node3D
     private DateTime _lastObservedWriteUtc;
     private double _pollAccumulator;
     private bool _f3WasPressed;
+    private float _drillProgress;
+    private DrillStepResult _lastDrillResult;
+    private bool _isAimingAtDeposit;
 
     public TuningConfig CurrentTuning => _tuningSession.Current;
     public PilotMode CurrentPilotMode => _pilotModeMachine.CurrentMode;
@@ -153,6 +158,11 @@ public partial class GameRoot : Node3D
         // Apply physics flight step
         if (_pilotModeMachine.Mode == PilotMode.SeatedInCockpit)
         {
+            _drillProgress = 0.0f;
+            _lastDrillResult = default;
+            _isAimingAtDeposit = false;
+            _suitRig.SetDrillBeam(false, Vector3.Zero);
+
             FlightInput flightInput = _inputReader.ConsumeFlightInput(isCaptured);
             _shipRig.ApplyFlightStep(in flightInput, CurrentTuning, (float)delta);
         }
@@ -163,6 +173,49 @@ public partial class GameRoot : Node3D
 
             FlightInput suitInput = _inputReader.ConsumeFlightInput(isCaptured);
             _suitRig.ApplyFlightStep(in suitInput, CurrentTuning, (float)delta);
+
+            // Forward raycast from SuitCamera out to 25m, excluding suit collider
+            Vector3 camPos = _suitRig.SuitCamera.GlobalPosition;
+            Vector3 rayDir = -_suitRig.SuitCamera.GlobalBasis.Z;
+            Vector3 rayEnd = camPos + (rayDir * 25.0f);
+
+            var spaceState = _suitRig.GetWorld3D().DirectSpaceState;
+            var query = PhysicsRayQueryParameters3D.Create(camPos, rayEnd);
+            query.Exclude = new Godot.Collections.Array<Rid> { _suitRig.GetRid() };
+
+            OreDepositNode? targetedDeposit = null;
+            float targetedDistance = float.MaxValue;
+            Vector3 targetHitPos = Vector3.Zero;
+
+            var hit = spaceState.IntersectRay(query);
+            if (hit.Count > 0)
+            {
+                targetHitPos = (Vector3)hit["position"];
+                targetedDistance = camPos.DistanceTo(targetHitPos);
+                var colliderObj = (GodotObject)hit["collider"];
+                targetedDeposit = colliderObj as OreDepositNode ?? (colliderObj as Node)?.GetParent<OreDepositNode>();
+            }
+
+            _isAimingAtDeposit = targetedDeposit != null;
+            bool isFiring = _inputReader.IsFireHeld(isCaptured);
+            int activeSlot = _suitVisorHud.CurrentActiveSlot;
+
+            _lastDrillResult = DrillSim.Step(
+                targetedDeposit?.State,
+                _pilotModeMachine.SuitInventory,
+                isFiring,
+                activeSlot,
+                targetedDistance,
+                CurrentTuning,
+                (float)delta,
+                ref _drillProgress);
+
+            if (_lastDrillResult.UnitsExtracted > 0 && targetedDeposit != null)
+            {
+                targetedDeposit.UpdateVisuals();
+            }
+
+            _suitRig.SetDrillBeam(_lastDrillResult.BeamActive, targetHitPos);
         }
     }
 
@@ -232,7 +285,12 @@ public partial class GameRoot : Node3D
                 _suitRig.DampenersEnabled,
                 _suitRig.SuitCamera.Fov,
                 CurrentTuning,
-                slotInput);
+                slotInput,
+                cargoCount: _pilotModeMachine.SuitInventory.TotalCount,
+                steelBlockCount: _pilotModeMachine.SuitInventory.GetCount(ItemId.SteelBlock),
+                drillStatus: _lastDrillResult.Status,
+                drillProgress: _drillProgress,
+                isAimingAtDeposit: _isAimingAtDeposit);
         }
     }
 

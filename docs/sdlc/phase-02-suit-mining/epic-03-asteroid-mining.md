@@ -43,3 +43,64 @@ Metallic rust-gold (`#D97706`) `IronOre` seam colliders sit on the `#27272A` ast
 
 - Exclude `SuitRigNode.GetRid()` from `PhysicsRayQueryParameters3D.Exclude` when casting forward from `SuitCamera` (out to e.g. `25m` so aiming at a deposit between `5m` and `25m` can detect `OutOfRange` and dim the reticle per [design.md](../../design.md), while only allowing extraction at `<= drillRange`).
 - Place 3–4 `#D97706` metallic ore deposit nodes (`25`–`35` `IronOre` units each, so two deposits can fill the `50`-unit suit cargo and prove both `Depleted` and `CargoFull` in one run) on the station/origin-facing side of the asteroid (`SpaceArenaLayout.AsteroidPosition`) where directional sunlight hits directly.
+
+## Build note — 2026-11-10
+
+### Tasks done
+
+- Implemented `ItemId` (`IronOre`, `SteelBlock`) and capacity-bounded `SuitInventory` (with `Inventory` alias) in `Keel.Sim.Inventory` enforcing `[0, Capacity]` bounds, remainder calculation on partial/overflow additions, and safe non-positive transfer handling.
+- Implemented `OreDepositState` in `Keel.Sim.Mining` managing discrete unit yields and depletion states.
+- Implemented `DrillSim` in `Keel.Sim.Mining` with fractional progress accumulation, multi-unit rollover ticks, 1-for-1 unit transfer to cargo, and strict status evaluation (`OutOfRange`, `Idle`, `Depleted`, `CargoFull`, `Drilling`).
+- Updated `PilotModeStateMachine` to preserve `SuitInventory` across `TryBoardShip` and `ExitCockpit` state transitions.
+- Created `OreDepositNode` in `Keel.Game.World` with metallic `#D97706` material, collision geometry, and depleted material darkening.
+- Attached 4 mineable ore deposit nodes (25–35 units each) on the sunlit, station/origin-facing side of the asteroid in `LandmarkBuilder`.
+- Updated `ReticleCanvasControl` in `Keel.Game.UI` with extraction progress arc rendering around the center reticle and out-of-range reticle dimming.
+- Updated `SuitVisorHudNode` in `Keel.Game.UI` with contextual prompts (`[LMB] Drill Iron Ore`, `OUT OF RANGE`, `DEPLETED`, `CARGO FULL`) and real-time cargo fill integration.
+- Updated `SuitRigNode` in `Keel.Game.Suit` with dynamic 3D amber drill beam rendering via `ImmediateMesh`.
+- Updated `GameRoot` with forward camera physics raycasting (up to 25m, excluding suit collider), LMB drill firing, visual deposit updates, drill beam toggling, and cargo persistence across cockpit boarding and exiting.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Mining/AsteroidMiningTests.cs`
+  - `AsteroidMiningTests.Inventory_EnforcesCapacityAndPartialOverflowTransfers` (proves AC-1)
+  - `AsteroidMiningTests.DrillSim_ExtractsWholeOreUnitsAcrossFractionalTicksUntilDepleted` (proves AC-2)
+  - `AsteroidMiningTests.DrillSim_HaltsOnOutOfRangeWrongSlotDepletedOrCargoFullAndPersistsAcrossBoarding` (proves AC-3)
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Summary: `Passed! - Failed: 0, Passed: 19, Skipped: 0, Total: 19, Duration: 93 ms - Keel.Sim.Tests.dll (net8.0)` (with `Keel.Game` compiled cleanly)
+
+### Deviations from the plan
+
+None.
+
+### Follow-ups
+
+- Launch Godot (`F5`) to verify asteroid ore seam visuals, drill beam alignment, reticle sweep arc, and boarding cargo persistence in real-time gameplay.
+
+---
+
+## Review — 2026-11-10
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `AsteroidMiningTests.Inventory_EnforcesCapacityAndPartialOverflowTransfers` |
+| AC-2 | yes | `AsteroidMiningTests.DrillSim_ExtractsWholeOreUnitsAcrossFractionalTicksUntilDepleted` |
+| AC-3 | yes | `AsteroidMiningTests.DrillSim_HaltsOnOutOfRangeWrongSlotDepletedOrCargoFullAndPersistsAcrossBoarding` |
+
+### Drift
+
+None
+
+### Findings
+
+None
+
+### Follow-ups
+
+None

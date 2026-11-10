@@ -28,6 +28,10 @@ public partial class ReticleCanvasControl : Control
     public ReticleColorTheme ColorTheme { get; set; } = ReticleColorTheme.Amber;
     public new ReticleColorTheme Theme { get => ColorTheme; set => ColorTheme = value; }
 
+    public float ExtractionProgress { get; set; } = 0.0f;
+    public bool IsExtracting { get; set; } = false;
+    public bool IsTargetOutOfRange { get; set; } = false;
+
     private ReticleProjectionResult _projection;
 
     public override void _Ready()
@@ -53,6 +57,14 @@ public partial class ReticleCanvasControl : Control
         Color boresightColor = Theme == ReticleColorTheme.Cyan ? CyanBoresight : AmberBoresight;
         Color clampedColor = Theme == ReticleColorTheme.Cyan ? AmberAccent : CyanAccent;
 
+        if (IsTargetOutOfRange)
+        {
+            primary.A *= 0.4f;
+            ringColor.A *= 0.4f;
+            boresightColor.A *= 0.4f;
+            clampedColor.A *= 0.4f;
+        }
+
         // 1. Central HUD Clamp Ring
         DrawArc(center, RingRadius, 0.0f, Mathf.Tau, 64, ringColor, 1.5f, antialiased: true);
 
@@ -63,6 +75,15 @@ public partial class ReticleCanvasControl : Control
         DrawLine(new Vector2(center.X + boreGap, center.Y), new Vector2(center.X + boreArm + boreGap, center.Y), boresightColor, 1.5f, antialiased: true);
         DrawLine(new Vector2(center.X, center.Y - boreArm - boreGap), new Vector2(center.X, center.Y - boreGap), boresightColor, 1.5f, antialiased: true);
         DrawLine(new Vector2(center.X, center.Y + boreGap), new Vector2(center.X, center.Y + boreArm + boreGap), boresightColor, 1.5f, antialiased: true);
+
+        // 2b. Amber Extraction Progress Arc around center boresight
+        if (IsExtracting && ExtractionProgress > 0.0f)
+        {
+            const float arcRadius = 24.0f;
+            float startAngle = -Mathf.Pi * 0.5f;
+            float sweepAngle = Mathf.Clamp(ExtractionProgress, 0.0f, 1.0f) * Mathf.Tau;
+            DrawArc(center, arcRadius, startAngle, startAngle + sweepAngle, 36, AmberAccent, 2.5f, antialiased: true);
+        }
 
         // 3. Prograde Marker (Open Circle with 3 radial ticks: top, left, right)
         if (_projection.Prograde.IsVisible)

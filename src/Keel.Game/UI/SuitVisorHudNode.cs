@@ -4,6 +4,7 @@ using System.Globalization;
 using Godot;
 using Keel.Sim.Config;
 using Keel.Sim.Hud;
+using Keel.Sim.Mining;
 using SimVector3 = System.Numerics.Vector3;
 
 namespace Keel.Game.UI;
@@ -177,11 +178,17 @@ public partial class SuitVisorHudNode : CanvasLayer
         TuningConfig tuning,
         int? slotInput,
         int cargoCount = 0,
-        int steelBlockCount = 0)
+        int steelBlockCount = 0,
+        DrillStatus drillStatus = DrillStatus.Idle,
+        float drillProgress = 0.0f,
+        bool isAimingAtDeposit = false)
     {
         var inv = CultureInfo.InvariantCulture;
 
-        // 1. Reticle vector pips
+        // 1. Reticle vector pips & extraction arc
+        _reticle.ExtractionProgress = drillProgress;
+        _reticle.IsExtracting = drillStatus == DrillStatus.Drilling;
+        _reticle.IsTargetOutOfRange = drillStatus == DrillStatus.OutOfRange && isAimingAtDeposit;
         _reticle.UpdateProjection(suitLocalVelocity, cameraFov);
 
         // 2. Bearing tape
@@ -243,7 +250,35 @@ public partial class SuitVisorHudNode : CanvasLayer
         if (visorState.CanBoardShip && !string.IsNullOrEmpty(visorState.BoardingPrompt))
         {
             _contextPromptLabel.Text = visorState.BoardingPrompt;
+            _contextPromptLabel.AddThemeColorOverride("font_color", VisorPrimary);
             _contextPromptLabel.Visible = true;
+        }
+        else if (isAimingAtDeposit && _currentSlot == 1)
+        {
+            if (drillStatus == DrillStatus.CargoFull || visorState.IsCargoFull)
+            {
+                _contextPromptLabel.Text = "CARGO FULL";
+                _contextPromptLabel.AddThemeColorOverride("font_color", VisorDanger);
+                _contextPromptLabel.Visible = true;
+            }
+            else if (drillStatus == DrillStatus.Depleted)
+            {
+                _contextPromptLabel.Text = "DEPLETED";
+                _contextPromptLabel.AddThemeColorOverride("font_color", VisorMuted);
+                _contextPromptLabel.Visible = true;
+            }
+            else if (drillStatus == DrillStatus.OutOfRange)
+            {
+                _contextPromptLabel.Text = "OUT OF RANGE";
+                _contextPromptLabel.AddThemeColorOverride("font_color", VisorWarning);
+                _contextPromptLabel.Visible = true;
+            }
+            else
+            {
+                _contextPromptLabel.Text = "[LMB] Drill Iron Ore";
+                _contextPromptLabel.AddThemeColorOverride("font_color", VisorWarning);
+                _contextPromptLabel.Visible = true;
+            }
         }
         else
         {

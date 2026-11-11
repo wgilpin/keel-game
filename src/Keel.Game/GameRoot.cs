@@ -15,6 +15,7 @@ using Keel.Sim.Mining;
 using Keel.Sim.Pilot;
 using Keel.Sim.Persistence;
 using Keel.Sim.Refinery;
+using Keel.Sim.Storage;
 using Keel.Sim.Telemetry;
 using SimQuaternion = System.Numerics.Quaternion;
 using SimVector3 = System.Numerics.Vector3;
@@ -34,6 +35,7 @@ public partial class GameRoot : Node3D
     private StationGridNode _stationNode = null!;
     private Node3D _asteroidNode = null!;
     private RefineryTerminalNode _refineryTerminal = null!;
+    private CargoTerminalNode _cargoTerminal = null!;
     private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
     private readonly PersistenceSession _persistenceSession = new();
@@ -52,6 +54,8 @@ public partial class GameRoot : Node3D
     private BlockType _targetedBlockType = BlockType.None;
     private float _targetedStationDistance = float.MaxValue;
     private bool _isRefineryOpen;
+    private bool _isCargoOpen;
+    private Int3? _openCargoCell;
     private PlacementEvaluation _lastPlacementEval;
     private float _grinderProgress;
     private Int3? _lastGrinderTargetCell;
@@ -95,6 +99,16 @@ public partial class GameRoot : Node3D
         _refineryTerminal.CloseRequested += CloseRefineryTerminal;
         AddChild(_refineryTerminal);
 
+        _cargoTerminal = new CargoTerminalNode();
+        _cargoTerminal.DepositOreRequested += () => HandleCargoTransfer(ItemId.IronOre, isDeposit: true);
+        _cargoTerminal.WithdrawOreRequested += () => HandleCargoTransfer(ItemId.IronOre, isDeposit: false);
+        _cargoTerminal.DepositBlocksRequested += () => HandleCargoTransfer(ItemId.SteelBlock, isDeposit: true);
+        _cargoTerminal.WithdrawBlocksRequested += () => HandleCargoTransfer(ItemId.SteelBlock, isDeposit: false);
+        _cargoTerminal.DepositAllRequested += HandleCargoDepositAll;
+        _cargoTerminal.WithdrawAllRequested += HandleCargoWithdrawAll;
+        _cargoTerminal.CloseRequested += CloseCargoTerminal;
+        AddChild(_cargoTerminal);
+
         _spaceDust = new SpaceDustNode();
         AddChild(_spaceDust);
 
@@ -136,6 +150,48 @@ public partial class GameRoot : Node3D
             else if (_inputReader.ConsumeWithdrawToggle())
             {
                 HandleRefineryWithdraw();
+            }
+
+            _inputReader.ConsumeMouseRecaptureClick();
+            return;
+        }
+
+        if (_isCargoOpen)
+        {
+            _inputReader.ConsumePrimaryActionClick();
+            if (_inputReader.ConsumeInteractToggle() || _inputReader.ConsumeMouseCaptureToggle())
+            {
+                CloseCargoTerminal();
+                return;
+            }
+
+            int? slotKey = _inputReader.ConsumeSlotSelection();
+            if (slotKey.HasValue)
+            {
+                switch (slotKey.Value)
+                {
+                    case 1:
+                        HandleCargoTransfer(ItemId.IronOre, isDeposit: true);
+                        break;
+                    case 2:
+                        HandleCargoTransfer(ItemId.IronOre, isDeposit: false);
+                        break;
+                    case 3:
+                        HandleCargoTransfer(ItemId.SteelBlock, isDeposit: true);
+                        break;
+                    case 4:
+                        HandleCargoTransfer(ItemId.SteelBlock, isDeposit: false);
+                        break;
+                }
+            }
+
+            if (_inputReader.ConsumeDepositToggle())
+            {
+                HandleCargoDepositAll();
+            }
+            else if (_inputReader.ConsumeWithdrawToggle())
+            {
+                HandleCargoWithdrawAll();
             }
 
             _inputReader.ConsumeMouseRecaptureClick();
@@ -201,6 +257,14 @@ public partial class GameRoot : Node3D
             {
                 CloseRefineryTerminal();
             }
+            else if (_isCargoOpen)
+            {
+                CloseCargoTerminal();
+            }
+            else if (_targetedBlockType == BlockType.CargoContainer && _targetedGridCell.HasValue && _targetedStationDistance <= CurrentTuning.CargoInteractRange)
+            {
+                OpenCargoTerminal(_targetedGridCell.Value);
+            }
             else if (_targetedBlockType == BlockType.Refinery && _targetedStationDistance <= CurrentTuning.RefineryInteractRange)
             {
                 OpenRefineryTerminal();
@@ -215,6 +279,8 @@ public partial class GameRoot : Node3D
 
                 if (boarded)
                 {
+                    if (_isRefineryOpen) CloseRefineryTerminal();
+                    if (_isCargoOpen) CloseCargoTerminal();
                     _suitRig.SetActive(false);
                     _shipRig.SetHullVisible(false);
                     _suitRig.SuitCamera.Current = false;
@@ -234,6 +300,20 @@ public partial class GameRoot : Node3D
             if (distToRefinery > CurrentTuning.RefineryInteractRange + 1.5f)
             {
                 CloseRefineryTerminal();
+            }
+        }
+
+        // Auto-close cargo terminal if drifted past tether limit
+        if (_isCargoOpen && _stationNode != null && _openCargoCell.HasValue)
+        {
+            Vector3 containerWorldPos = _stationNode.GlobalPosition + new Vector3(
+                _openCargoCell.Value.X * BlockGrid.CellSize,
+                _openCargoCell.Value.Y * BlockGrid.CellSize,
+                _openCargoCell.Value.Z * BlockGrid.CellSize);
+            float distToContainer = _suitRig.GlobalPosition.DistanceTo(containerWorldPos);
+            if (distToContainer > CurrentTuning.CargoInteractRange + 1.5f)
+            {
+                CloseCargoTerminal();
             }
         }
 
@@ -263,7 +343,8 @@ public partial class GameRoot : Node3D
             // Unmanned ship continues dampening and boundary enforcement
             _shipRig.ApplyFlightStep(FlightInput.Zero, CurrentTuning, (float)delta);
 
-            FlightInput suitInput = _inputReader.ConsumeFlightInput(isCaptured, isModalActive: _isRefineryOpen);
+            bool isModalActive = _isRefineryOpen || _isCargoOpen;
+            FlightInput suitInput = _inputReader.ConsumeFlightInput(isCaptured, isModalActive: isModalActive);
             _suitRig.ApplyFlightStep(in suitInput, CurrentTuning, (float)delta);
 
             // Forward raycast from SuitCamera out to 25m, excluding suit collider
@@ -304,7 +385,7 @@ public partial class GameRoot : Node3D
             }
 
             _isAimingAtDeposit = targetedDeposit != null;
-            bool isFiring = !_isRefineryOpen && _inputReader.IsFireHeld(isCaptured);
+            bool isFiring = !isModalActive && _inputReader.IsFireHeld(isCaptured);
             int activeSlot = _suitVisorHud.CurrentActiveSlot;
             bool primaryClicked = _inputReader.ConsumePrimaryActionClick();
 
@@ -321,7 +402,7 @@ public partial class GameRoot : Node3D
                     localHitNormal: simLocalHitNormal,
                     hitDistance: targetedDistance,
                     buildRange: CurrentTuning.BuildRange,
-                    isModalOpen: _isRefineryOpen,
+                    isModalOpen: isModalActive,
                     dynamicObstacles: obstacles);
 
                 if (_lastPlacementEval.ShowGhost && _lastPlacementEval.CandidateCell.HasValue)
@@ -337,7 +418,7 @@ public partial class GameRoot : Node3D
                     _stationNode.GhostNode.HideGhost();
                 }
 
-                if (primaryClicked && (activeSlot is BlockPlacementSim.BuildSlotIndex or 4 or 5) && !_isRefineryOpen)
+                if (primaryClicked && (activeSlot is BlockPlacementSim.BuildSlotIndex or 4 or 5) && !isModalActive)
                 {
                     if (BlockPlacementSim.TryPlace(_stationNode.Grid, _pilotModeMachine.SuitInventory, in _lastPlacementEval, out _))
                     {
@@ -367,7 +448,7 @@ public partial class GameRoot : Node3D
 
             _suitRig.SetDrillBeam(_lastDrillResult.BeamActive, targetHitPos);
 
-            if (activeSlot == GrinderSim.GrinderSlotIndex && !_isRefineryOpen)
+            if (activeSlot == GrinderSim.GrinderSlotIndex && !isModalActive)
             {
                 _lastGrinderResult = GrinderSim.Step(
                     _stationNode!.Grid,
@@ -520,11 +601,34 @@ public partial class GameRoot : Node3D
                     stationPower);
                 _refineryTerminal.UpdateTerminal(in vm);
             }
+
+            if (_isCargoOpen && _stationNode != null && _openCargoCell.HasValue)
+            {
+                if (_stationNode.CargoStore.TryGetContainer(_openCargoCell.Value, out var container))
+                {
+                    var vm = CargoTerminalModel.Compute(
+                        _openCargoCell.Value,
+                        container,
+                        _pilotModeMachine.SuitInventory,
+                        stationPower,
+                        _isCargoOpen);
+                    _cargoTerminal.UpdateTerminal(in vm);
+                }
+                else
+                {
+                    CloseCargoTerminal();
+                }
+            }
         }
     }
 
     private void OpenRefineryTerminal()
     {
+        if (_isCargoOpen)
+        {
+            CloseCargoTerminal();
+        }
+
         _isRefineryOpen = true;
         _refineryTerminal.Visible = true;
         Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Visible;
@@ -535,6 +639,64 @@ public partial class GameRoot : Node3D
         _isRefineryOpen = false;
         _refineryTerminal.Visible = false;
         Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Captured;
+    }
+
+    private void OpenCargoTerminal(Int3 cell)
+    {
+        if (_isRefineryOpen)
+        {
+            CloseRefineryTerminal();
+        }
+
+        _isCargoOpen = true;
+        _openCargoCell = cell;
+        _cargoTerminal.Visible = true;
+        Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Visible;
+    }
+
+    private void CloseCargoTerminal()
+    {
+        _isCargoOpen = false;
+        _openCargoCell = null;
+        _cargoTerminal.Visible = false;
+        Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Captured;
+    }
+
+    private void HandleCargoTransfer(ItemId itemId, bool isDeposit)
+    {
+        if (!_isCargoOpen || _stationNode == null || !_openCargoCell.HasValue) return;
+
+        if (_stationNode.CargoStore.TryGetContainer(_openCargoCell.Value, out var container))
+        {
+            if (isDeposit)
+            {
+                CargoTransferSim.Deposit(_pilotModeMachine.SuitInventory, container, itemId, 1);
+            }
+            else
+            {
+                CargoTransferSim.Withdraw(_pilotModeMachine.SuitInventory, container, itemId, 1);
+            }
+        }
+    }
+
+    private void HandleCargoDepositAll()
+    {
+        if (!_isCargoOpen || _stationNode == null || !_openCargoCell.HasValue) return;
+
+        if (_stationNode.CargoStore.TryGetContainer(_openCargoCell.Value, out var container))
+        {
+            CargoTransferSim.DepositAll(_pilotModeMachine.SuitInventory, container);
+        }
+    }
+
+    private void HandleCargoWithdrawAll()
+    {
+        if (!_isCargoOpen || _stationNode == null || !_openCargoCell.HasValue) return;
+
+        if (_stationNode.CargoStore.TryGetContainer(_openCargoCell.Value, out var container))
+        {
+            CargoTransferSim.WithdrawAll(_pilotModeMachine.SuitInventory, container);
+        }
     }
 
     private void HandleRefineryDeposit()
@@ -701,6 +863,11 @@ public partial class GameRoot : Node3D
             CloseRefineryTerminal();
         }
 
+        if (_isCargoOpen)
+        {
+            CloseCargoTerminal();
+        }
+
         _drillProgress = 0f;
         _lastDrillResult = default;
         _isAimingAtDeposit = false;
@@ -740,6 +907,15 @@ public partial class GameRoot : Node3D
 
     private void ApplyWorldSnapshot(WorldSaveData data)
     {
+        if (_isRefineryOpen)
+        {
+            CloseRefineryTerminal();
+        }
+
+        if (_isCargoOpen)
+        {
+            CloseCargoTerminal();
+        }
         var depositNodes = GetOreDepositNodes();
         var depositStates = depositNodes.ConvertAll(n => n.State);
 

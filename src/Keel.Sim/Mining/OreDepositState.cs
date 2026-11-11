@@ -5,6 +5,7 @@ namespace Keel.Sim.Mining;
 
 public sealed class OreDepositState
 {
+    public string DepositId { get; set; } = string.Empty;
     public ItemId OreType { get; set; } = ItemId.IronOre;
     public int InitialUnits { get; set; }
     public int RemainingUnits { get; set; }
@@ -14,8 +15,9 @@ public sealed class OreDepositState
     {
     }
 
-    public OreDepositState(int initialUnits, ItemId oreType = ItemId.IronOre)
+    public OreDepositState(int initialUnits, ItemId oreType = ItemId.IronOre, string depositId = "")
     {
+        DepositId = depositId;
         InitialUnits = Math.Max(0, initialUnits);
         RemainingUnits = InitialUnits;
         OreType = oreType;

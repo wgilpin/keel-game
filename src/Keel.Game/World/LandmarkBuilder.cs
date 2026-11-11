@@ -54,10 +54,10 @@ public static class LandmarkBuilder
         staticBody.AddChild(bodyShape);
 
         // Mineable metallic rust-gold (#D97706) ore seams on sunlit, station/origin-facing face
-        root.AddChild(new OreDepositNode(30) { Position = new Vector3(-20.0f, 6.0f, 22.0f) });
-        root.AddChild(new OreDepositNode(25) { Position = new Vector3(-12.0f, 14.0f, 20.0f) });
-        root.AddChild(new OreDepositNode(35) { Position = new Vector3(-24.0f, -6.0f, 18.0f) });
-        root.AddChild(new OreDepositNode(30) { Position = new Vector3(-8.0f, -4.0f, 30.0f) });
+        root.AddChild(new OreDepositNode(30, Sim.Inventory.ItemId.IronOre, "asteroid-01-seam-0") { Name = "asteroid-01-seam-0", Position = new Vector3(-20.0f, 6.0f, 22.0f) });
+        root.AddChild(new OreDepositNode(25, Sim.Inventory.ItemId.IronOre, "asteroid-01-seam-1") { Name = "asteroid-01-seam-1", Position = new Vector3(-12.0f, 14.0f, 20.0f) });
+        root.AddChild(new OreDepositNode(35, Sim.Inventory.ItemId.IronOre, "asteroid-01-seam-2") { Name = "asteroid-01-seam-2", Position = new Vector3(-24.0f, -6.0f, 18.0f) });
+        root.AddChild(new OreDepositNode(30, Sim.Inventory.ItemId.IronOre, "asteroid-01-seam-3") { Name = "asteroid-01-seam-3", Position = new Vector3(-8.0f, -4.0f, 30.0f) });
 
         return root;
     }

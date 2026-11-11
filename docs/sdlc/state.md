@@ -44,7 +44,7 @@ Updated: 2026-11-11
   - [x] epic-03-grinder-hud-telemetry — merged 2026-11-11
 - [ ] 06-world-persistence — in progress
   - [x] epic-01-world-save-tracer — merged 2026-11-11
-  - [ ] epic-02-world-grid-resources — pending
+  - [x] epic-02-world-grid-resources — reviewed 2026-11-11
   - [ ] epic-03-save-commands-telemetry — pending
 - [ ] 07-station-power-storage — pending
 - [ ] 08-dynamic-ship-construction — pending

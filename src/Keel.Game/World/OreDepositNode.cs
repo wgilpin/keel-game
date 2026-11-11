@@ -16,13 +16,13 @@ public partial class OreDepositNode : StaticBody3D
     private StandardMaterial3D _depletedMaterial = null!;
     private Vector3 _originalScale = Vector3.One;
 
-    public OreDepositNode() : this(30, ItemId.IronOre)
+    public OreDepositNode() : this(30, ItemId.IronOre, "")
     {
     }
 
-    public OreDepositNode(int yieldUnits, ItemId oreType = ItemId.IronOre)
+    public OreDepositNode(int yieldUnits, ItemId oreType = ItemId.IronOre, string depositId = "")
     {
-        State = new OreDepositState(yieldUnits, oreType);
+        State = new OreDepositState(yieldUnits, oreType, depositId);
     }
 
     public override void _Ready()

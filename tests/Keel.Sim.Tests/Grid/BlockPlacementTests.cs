@@ -1,6 +1,10 @@
 using System.Numerics;
+using Keel.Sim.Config;
 using Keel.Sim.Grid;
 using Keel.Sim.Inventory;
+using Keel.Sim.Mining;
+using Keel.Sim.Pilot;
+using Keel.Sim.Refinery;
 using Xunit;
 
 namespace Keel.Sim.Tests.Grid;
@@ -402,5 +406,125 @@ public sealed class BlockPlacementTests
             hasStationHit: false, localHitPosition: Vector3.Zero, localHitNormal: Vector3.Zero,
             hitDistance: 4.0f, buildRange: range, isModalOpen: false);
         Assert.False(evalMiss.ShowGhost);
+    }
+
+    [Fact]
+    public void ClosedLoop_MineRefineWithdrawPlaceAndBoardConservesItemsAndGridConnectivity()
+    {
+        var tuning = TuningConfig.Default;
+        var station = StationBlueprint.CreateDefault();
+        int initialGridCount = station.Count;
+        Assert.True(station.IsConnected());
+
+        var pilotMachine = new PilotModeStateMachine();
+        // Exit ship into suit
+        pilotMachine.ExitCockpit(Vector3.Zero, Quaternion.Identity, Vector3.Zero);
+        Assert.Equal(PilotMode.FloatingInSuit, pilotMachine.Mode);
+
+        var deposit = new OreDepositState(10, ItemId.IronOre);
+        var refinery = new RefineryState();
+        float drillProgress = 0.0f;
+
+        // 1. Mine 4 units of IronOre from deposit with [1] Drill (drillRate = 1.5/s, need 4 units -> ~2.67s)
+        var drillRes = DrillSim.Step(
+            deposit,
+            pilotMachine.SuitInventory,
+            isFiring: true,
+            activeSlot: 1,
+            hitDistance: 3.0f,
+            tuning: tuning,
+            deltaSeconds: 4.0f / tuning.DrillRate,
+            ref drillProgress);
+
+        Assert.Equal(4, drillRes.UnitsExtracted);
+        Assert.Equal(6, deposit.RemainingUnits);
+        Assert.Equal(4, pilotMachine.SuitInventory.GetCount(ItemId.IronOre));
+        Assert.Equal(0, pilotMachine.SuitInventory.GetCount(ItemId.SteelBlock));
+
+        // 2. Deposit IronOre into station refinery
+        int deposited = RefinerySim.DepositFromSuit(refinery, pilotMachine.SuitInventory);
+        Assert.Equal(4, deposited);
+        Assert.Equal(0, pilotMachine.SuitInventory.GetCount(ItemId.IronOre));
+        Assert.Equal(4, refinery.InputInventory.GetCount(ItemId.IronOre));
+
+        // 3. Step refinery for 2 full cycles (4.0s at 2.0s/cycle, 2 ore per block -> 2 blocks)
+        RefinerySim.Step(refinery, tuning, 4.0f);
+        Assert.Equal(0, refinery.InputInventory.GetCount(ItemId.IronOre));
+        Assert.Equal(2, refinery.OutputInventory.GetCount(ItemId.SteelBlock));
+
+        // 4. Withdraw refined SteelBlock items into suit cargo
+        int withdrawn = RefinerySim.WithdrawToSuit(refinery, pilotMachine.SuitInventory);
+        Assert.Equal(2, withdrawn);
+        Assert.Equal(2, pilotMachine.SuitInventory.GetCount(ItemId.SteelBlock));
+        Assert.Equal(0, refinery.OutputInventory.GetCount(ItemId.SteelBlock));
+
+        // 5. Place 1st block at +X of Refinery: (1, 0, 3)
+        float refZ = 3 * BlockGrid.CellSize;
+        var eval1 = BlockPlacementSim.Evaluate(
+            grid: station,
+            isFloatingInSuit: true,
+            activeSlot: 2,
+            steelBlockCount: pilotMachine.SuitInventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(BlockGrid.CellSize * 0.5f, 0f, refZ),
+            localHitNormal: Vector3.UnitX,
+            hitDistance: 3.5f,
+            buildRange: tuning.BuildRange,
+            isModalOpen: false);
+
+        Assert.True(eval1.IsValid);
+        Assert.True(eval1.ShowGhost);
+        bool placed1 = BlockPlacementSim.TryPlace(station, pilotMachine.SuitInventory, in eval1, out _);
+        Assert.True(placed1);
+        Assert.Equal(initialGridCount + 1, station.Count);
+        Assert.Equal(1, pilotMachine.SuitInventory.GetCount(ItemId.SteelBlock));
+        Assert.True(station.IsConnected());
+
+        // 6. Chain 2nd block onto (2, 0, 3)
+        var eval2 = BlockPlacementSim.Evaluate(
+            grid: station,
+            isFloatingInSuit: true,
+            activeSlot: 2,
+            steelBlockCount: pilotMachine.SuitInventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(BlockGrid.CellSize * 1.5f, 0f, refZ),
+            localHitNormal: Vector3.UnitX,
+            hitDistance: 3.5f,
+            buildRange: tuning.BuildRange,
+            isModalOpen: false);
+
+        Assert.True(eval2.IsValid);
+        bool placed2 = BlockPlacementSim.TryPlace(station, pilotMachine.SuitInventory, in eval2, out _);
+        Assert.True(placed2);
+        Assert.Equal(initialGridCount + 2, station.Count);
+        Assert.Equal(0, pilotMachine.SuitInventory.GetCount(ItemId.SteelBlock));
+        Assert.True(station.IsConnected());
+
+        // 7. Exhausted stock: subsequent evaluation shows no ghost
+        var evalZero = BlockPlacementSim.Evaluate(
+            grid: station,
+            isFloatingInSuit: true,
+            activeSlot: 2,
+            steelBlockCount: pilotMachine.SuitInventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(BlockGrid.CellSize * 2.5f, 0f, refZ),
+            localHitNormal: Vector3.UnitX,
+            hitDistance: 3.5f,
+            buildRange: tuning.BuildRange,
+            isModalOpen: false);
+
+        Assert.Equal(PlacementStatus.NoBlocks, evalZero.Status);
+        Assert.False(evalZero.ShowGhost);
+
+        // 8. Board ship and exit: inventory and station blocks remain intact
+        bool boarded = pilotMachine.TryBoardShip(Vector3.Zero, Vector3.Zero, tuning.ShipInteractRange);
+        Assert.True(boarded);
+        Assert.Equal(PilotMode.SeatedInCockpit, pilotMachine.Mode);
+
+        pilotMachine.ExitCockpit(Vector3.Zero, Quaternion.Identity, Vector3.Zero);
+        Assert.Equal(PilotMode.FloatingInSuit, pilotMachine.Mode);
+        Assert.Equal(0, pilotMachine.SuitInventory.GetCount(ItemId.SteelBlock));
+        Assert.Equal(initialGridCount + 2, station.Count);
+        Assert.True(station.IsConnected());
     }
 }

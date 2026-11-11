@@ -37,3 +37,66 @@ Selecting `[2] Steel Block` updates the Suit Visor HUD and `F3` Debug Telemetry 
 
 - Consolidate contextual prompt text, `PromptTone` (`Primary` `#38BDF8`, `Warning` `#F59E0B`, `Danger` `#EF4444`, `Muted` `#8B9EB0`), and `IsTargetOutOfRange` into `SuitVisorModel.Compute` (keeping default parameter values backwards-compatible for existing callers) so `SuitVisorHudNode` renders `visorState` directly without duplicate UI branching.
 - Extend `DebugTelemetrySnapshot` with optional `Int3? PlacementCandidateCell = null` and `bool? IsPlacementValid = null` so `DebugTelemetryFormatter` appends `-> PLACE (x, y, z) VALID` / `INVALID` on the `GRID` line when `ShowGhost == true`. Do not write unit tests asserting UI colour hex values or `DebugTelemetryFormatter` string templates (`CLAUDE.md`).
+
+---
+
+## Build note — 2026-11-11
+
+**Result:** green
+
+### Tasks done
+
+- Extended `SuitVisorState` and `SuitVisorModel.Compute` with `PromptTone`, `IsTargetOutOfRange`, `placementStatus`, `drillStatus`, and slot-isolated prompt priority.
+- Extended `DebugTelemetrySnapshot` and `DebugTelemetryFormatter` to surface candidate `Int3` placement coordinates and validity (`-> PLACE (x, y, z) VALID` / `INVALID`) in `F3` telemetry.
+- Updated `SuitVisorHudNode` to render contextual prompt text and colors directly from `PromptTone` and bind reticle dimming to `IsTargetOutOfRange`.
+- Updated `GameRoot` to pass live `PlacementEvaluation` status into HUD and telemetry overlays.
+- Verified closed-loop 1-for-1 item conservation from drilling ore through refining and block placement on a connected `BlockGrid` with cockpit boarding persistence.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Hud/SuitVisorHudTests.cs`
+  - `SuitVisorHudTests.VisorModel_SurfacesConstructionPromptsAndRangeDimmingWhilePreservingInteractFlags` (proves AC-1)
+  - `SuitVisorHudTests.VisorModel_IsolatesDrillAndBuildSlotStatesAndZeroStockFallbacks` (proves AC-2)
+- `tests/Keel.Sim.Tests/Grid/BlockPlacementTests.cs`
+  - `BlockPlacementTests.ClosedLoop_MineRefineWithdrawPlaceAndBoardConservesItemsAndGridConnectivity` (proves AC-3)
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Summary: `Passed!  - Failed:     0, Passed:    38, Skipped:     0, Total:    38, Duration: 98 ms - Keel.Sim.Tests.dll (net8.0)`
+
+### Deviations from the plan
+
+None.
+
+### Follow-ups
+
+None.
+
+---
+
+## Review — 2026-11-11
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `SuitVisorHudTests.VisorModel_SurfacesConstructionPromptsAndRangeDimmingWhilePreservingInteractFlags` |
+| AC-2 | yes | `SuitVisorHudTests.VisorModel_IsolatesDrillAndBuildSlotStatesAndZeroStockFallbacks` |
+| AC-3 | yes | `BlockPlacementTests.ClosedLoop_MineRefineWithdrawPlaceAndBoardConservesItemsAndGridConnectivity` |
+
+### Drift
+
+None
+
+### Findings
+
+None
+
+### Follow-ups
+
+None
+
+

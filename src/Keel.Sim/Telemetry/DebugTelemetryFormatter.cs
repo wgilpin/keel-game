@@ -14,7 +14,9 @@ public readonly record struct DebugTelemetrySnapshot(
     string? LastConfigError,
     PilotMode Mode = PilotMode.SeatedInCockpit,
     Int3? TargetGridCell = null,
-    BlockType TargetBlockType = BlockType.None);
+    BlockType TargetBlockType = BlockType.None,
+    Int3? PlacementCandidateCell = null,
+    bool? IsPlacementValid = null);
 
 public static class DebugTelemetryFormatter
 {
@@ -34,6 +36,12 @@ public static class DebugTelemetryFormatter
         string gridText = snapshot.TargetGridCell.HasValue && snapshot.TargetBlockType != BlockType.None
             ? $"GRID {snapshot.TargetGridCell.Value} {snapshot.TargetBlockType.ToString().ToUpperInvariant()}"
             : "GRID --";
+
+        if (snapshot.PlacementCandidateCell.HasValue && snapshot.IsPlacementValid.HasValue)
+        {
+            string validStr = snapshot.IsPlacementValid.Value ? "VALID" : "INVALID";
+            gridText += $" -> PLACE {snapshot.PlacementCandidateCell.Value} {validStr}";
+        }
 
         return string.Create(inv,
             $"{mode} | {gridText}\n" +

@@ -4,6 +4,15 @@ using Keel.Sim.Grid;
 
 namespace Keel.Sim.Hud;
 
+public enum PromptTone
+{
+    None = 0,
+    Primary = 1,
+    Warning = 2,
+    Danger = 3,
+    Muted = 4,
+}
+
 public readonly record struct HotbarSlot(
     int Index,
     string Name,
@@ -23,7 +32,9 @@ public readonly record struct SuitVisorState(
     bool DampenersEnabled,
     IReadOnlyList<HotbarSlot> Slots,
     bool CanOpenRefinery = false,
-    string? PromptText = null);
+    string? PromptText = null,
+    PromptTone PromptTone = PromptTone.None,
+    bool IsTargetOutOfRange = false);
 
 public static class SuitVisorModel
 {
@@ -43,7 +54,10 @@ public static class SuitVisorModel
         int steelBlockCount = 0,
         BlockType targetedBlockType = BlockType.None,
         float targetedBlockDistance = float.MaxValue,
-        float refineryInteractRange = 5.0f)
+        float refineryInteractRange = 5.0f,
+        PlacementStatus placementStatus = PlacementStatus.NoTarget,
+        Mining.DrillStatus drillStatus = Mining.DrillStatus.Idle,
+        bool isAimingAtDeposit = false)
     {
         // 1. Hotbar slot clamping / preservation
         int activeSlot = currentSlot;
@@ -74,6 +88,8 @@ public static class SuitVisorModel
         bool canBoard = suitToShipDistance <= shipInteractRange;
         bool canOpenRefinery = false;
         string? prompt = null;
+        PromptTone promptTone = PromptTone.None;
+        bool isTargetOutOfRange = false;
 
         if (targetedBlockType == BlockType.Refinery)
         {
@@ -81,19 +97,94 @@ public static class SuitVisorModel
             {
                 canOpenRefinery = true;
                 prompt = "[F] Open Refinery";
+                promptTone = PromptTone.Warning;
             }
             else if (targetedBlockDistance <= 25.0f)
             {
                 prompt = "OUT OF RANGE";
+                promptTone = PromptTone.Warning;
+                isTargetOutOfRange = true;
             }
         }
-        else if (canBoard)
+        else if (activeSlot == 2)
         {
-            prompt = "[F] Board Ship";
+            if (steelBlockCount > 0)
+            {
+                if (placementStatus == PlacementStatus.Valid)
+                {
+                    prompt = "[LMB] Place Steel Block";
+                    promptTone = PromptTone.Primary;
+                }
+                else if (placementStatus == PlacementStatus.InvalidCell)
+                {
+                    prompt = "INVALID CELL";
+                    promptTone = PromptTone.Danger;
+                }
+                else if (placementStatus == PlacementStatus.OutOfRange)
+                {
+                    prompt = "OUT OF RANGE";
+                    promptTone = PromptTone.Warning;
+                    isTargetOutOfRange = true;
+                }
+                else if (canBoard)
+                {
+                    prompt = "[F] Board Ship";
+                    promptTone = PromptTone.Primary;
+                }
+            }
+            else
+            {
+                if (canBoard)
+                {
+                    prompt = "[F] Board Ship";
+                    promptTone = PromptTone.Primary;
+                }
+                else
+                {
+                    prompt = "NO STEEL BLOCKS — REFINE ORE AT STATION";
+                    promptTone = PromptTone.Warning;
+                }
+            }
         }
-        else if (activeSlot == 2 && steelBlockCount == 0)
+        else if (activeSlot == 1)
         {
-            prompt = "NO STEEL BLOCKS — REFINE ORE AT STATION";
+            if (isAimingAtDeposit)
+            {
+                if (drillStatus == Mining.DrillStatus.CargoFull || isCargoFull)
+                {
+                    prompt = "CARGO FULL";
+                    promptTone = PromptTone.Danger;
+                }
+                else if (drillStatus == Mining.DrillStatus.Depleted)
+                {
+                    prompt = "DEPLETED";
+                    promptTone = PromptTone.Muted;
+                }
+                else if (drillStatus == Mining.DrillStatus.OutOfRange)
+                {
+                    prompt = "OUT OF RANGE";
+                    promptTone = PromptTone.Warning;
+                    isTargetOutOfRange = true;
+                }
+                else
+                {
+                    prompt = "[LMB] Drill Iron Ore";
+                    promptTone = PromptTone.Warning;
+                }
+            }
+            else if (canBoard)
+            {
+                prompt = "[F] Board Ship";
+                promptTone = PromptTone.Primary;
+            }
+        }
+        else
+        {
+            if (canBoard)
+            {
+                prompt = "[F] Board Ship";
+                promptTone = PromptTone.Primary;
+            }
         }
 
         // 4. Hotbar slot items: [1] Drill, [2] Steel Block, [3]–[5] Empty
@@ -118,6 +209,8 @@ public static class SuitVisorModel
             DampenersEnabled: dampenersEnabled,
             Slots: slots,
             CanOpenRefinery: canOpenRefinery,
-            PromptText: prompt);
+            PromptText: prompt,
+            PromptTone: promptTone,
+            IsTargetOutOfRange: isTargetOutOfRange);
     }
 }

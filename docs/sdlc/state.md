@@ -37,7 +37,7 @@ Updated: 2026-11-11
 - [ ] 04-grid-construction — in progress
   - [x] epic-01-face-snapped-placement — merged 2026-11-11
   - [x] epic-02-placement-ghost-clearance — merged 2026-11-11
-  - [ ] epic-03-construction-hud-telemetry — pending
+  - [x] epic-03-construction-hud-telemetry — reviewed 2026-11-11
 
 ## Notes for a fresh session
 

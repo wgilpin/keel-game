@@ -47,6 +47,7 @@ public partial class GameRoot : Node3D
     private BlockType _targetedBlockType = BlockType.None;
     private float _targetedStationDistance = float.MaxValue;
     private bool _isRefineryOpen;
+    private PlacementEvaluation _lastPlacementEval;
 
     public TuningConfig CurrentTuning => _tuningSession.Current;
     public PilotMode CurrentPilotMode => _pilotModeMachine.CurrentMode;
@@ -221,6 +222,7 @@ public partial class GameRoot : Node3D
         // Apply physics flight step
         if (_pilotModeMachine.Mode == PilotMode.SeatedInCockpit)
         {
+            _lastPlacementEval = default;
             _inputReader.ConsumePrimaryActionClick();
             _drillProgress = 0.0f;
             _lastDrillResult = default;
@@ -284,7 +286,7 @@ public partial class GameRoot : Node3D
             if (_stationNode != null)
             {
                 var obstacles = ComputeStationLocalObstacles();
-                var placementEval = BlockPlacementSim.Evaluate(
+                _lastPlacementEval = BlockPlacementSim.Evaluate(
                     grid: _stationNode.Grid,
                     isFloatingInSuit: true,
                     activeSlot: activeSlot,
@@ -297,13 +299,13 @@ public partial class GameRoot : Node3D
                     isModalOpen: _isRefineryOpen,
                     dynamicObstacles: obstacles);
 
-                if (placementEval.ShowGhost && placementEval.CandidateCell.HasValue)
+                if (_lastPlacementEval.ShowGhost && _lastPlacementEval.CandidateCell.HasValue)
                 {
                     Vector3 localCenter = new(
-                        placementEval.CandidateCell.Value.X * BlockGrid.CellSize,
-                        placementEval.CandidateCell.Value.Y * BlockGrid.CellSize,
-                        placementEval.CandidateCell.Value.Z * BlockGrid.CellSize);
-                    _stationNode.GhostNode.ShowGhost(localCenter, placementEval.IsValid);
+                        _lastPlacementEval.CandidateCell.Value.X * BlockGrid.CellSize,
+                        _lastPlacementEval.CandidateCell.Value.Y * BlockGrid.CellSize,
+                        _lastPlacementEval.CandidateCell.Value.Z * BlockGrid.CellSize);
+                    _stationNode.GhostNode.ShowGhost(localCenter, _lastPlacementEval.IsValid);
                 }
                 else
                 {
@@ -312,11 +314,15 @@ public partial class GameRoot : Node3D
 
                 if (primaryClicked && activeSlot == BlockPlacementSim.BuildSlotIndex && !_isRefineryOpen)
                 {
-                    if (BlockPlacementSim.TryPlace(_stationNode.Grid, _pilotModeMachine.SuitInventory, in placementEval, out _))
+                    if (BlockPlacementSim.TryPlace(_stationNode.Grid, _pilotModeMachine.SuitInventory, in _lastPlacementEval, out _))
                     {
-                        _stationNode.AddBlockVisualAndCollider(placementEval.CandidateCell!.Value, BlockType.ArmorBlock);
+                        _stationNode.AddBlockVisualAndCollider(_lastPlacementEval.CandidateCell!.Value, BlockType.ArmorBlock);
                     }
                 }
+            }
+            else
+            {
+                _lastPlacementEval = default;
             }
 
             _lastDrillResult = DrillSim.Step(
@@ -359,6 +365,13 @@ public partial class GameRoot : Node3D
         Vector3 angVel = isSuit ? _suitRig.AngularVelocity : _shipRig.AngularVelocity;
         bool dampeners = isSuit ? _suitRig.DampenersEnabled : _shipRig.DampenersEnabled;
 
+        Int3? placementCandidate = isSuit && _lastPlacementEval.ShowGhost
+            ? _lastPlacementEval.CandidateCell
+            : null;
+        bool? isPlacementValid = isSuit && _lastPlacementEval.ShowGhost
+            ? _lastPlacementEval.IsValid
+            : null;
+
         var snapshot = new DebugTelemetrySnapshot(
             Position: new SimVector3(pos.X, pos.Y, pos.Z),
             LinearVelocity: new SimVector3(linVel.X, linVel.Y, linVel.Z),
@@ -368,7 +381,9 @@ public partial class GameRoot : Node3D
             LastConfigError: _tuningSession.LastError,
             Mode: _pilotModeMachine.Mode,
             TargetGridCell: _targetedGridCell,
-            TargetBlockType: _targetedBlockType);
+            TargetBlockType: _targetedBlockType,
+            PlacementCandidateCell: placementCandidate,
+            IsPlacementValid: isPlacementValid);
 
         _debugOverlay.Render(in snapshot);
 
@@ -413,7 +428,8 @@ public partial class GameRoot : Node3D
                 drillProgress: _drillProgress,
                 isAimingAtDeposit: _isAimingAtDeposit,
                 targetedBlockType: _targetedBlockType,
-                targetedBlockDistance: _targetedStationDistance);
+                targetedBlockDistance: _targetedStationDistance,
+                placementStatus: _lastPlacementEval.Status);
 
             if (_isRefineryOpen)
             {

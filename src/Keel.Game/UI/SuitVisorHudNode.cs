@@ -184,15 +184,14 @@ public partial class SuitVisorHudNode : CanvasLayer
         float drillProgress = 0.0f,
         bool isAimingAtDeposit = false,
         BlockType targetedBlockType = BlockType.None,
-        float targetedBlockDistance = float.MaxValue)
+        float targetedBlockDistance = float.MaxValue,
+        PlacementStatus placementStatus = PlacementStatus.NoTarget)
     {
         var inv = CultureInfo.InvariantCulture;
 
         // 1. Reticle vector pips & extraction arc
         _reticle.ExtractionProgress = drillProgress;
         _reticle.IsExtracting = drillStatus == DrillStatus.Drilling;
-        _reticle.IsTargetOutOfRange = (drillStatus == DrillStatus.OutOfRange && isAimingAtDeposit) ||
-                                      (targetedBlockType == BlockType.Refinery && targetedBlockDistance > tuning.RefineryInteractRange && targetedBlockDistance <= 25.0f);
         _reticle.UpdateProjection(suitLocalVelocity, cameraFov);
 
         // 2. Bearing tape
@@ -221,9 +220,13 @@ public partial class SuitVisorHudNode : CanvasLayer
             steelBlockCount: steelBlockCount,
             targetedBlockType: targetedBlockType,
             targetedBlockDistance: targetedBlockDistance,
-            refineryInteractRange: tuning.RefineryInteractRange);
+            refineryInteractRange: tuning.RefineryInteractRange,
+            placementStatus: placementStatus,
+            drillStatus: drillStatus,
+            isAimingAtDeposit: isAimingAtDeposit);
 
         _currentSlot = visorState.ActiveSlot;
+        _reticle.IsTargetOutOfRange = visorState.IsTargetOutOfRange;
 
         // 4. Update status stack
         _speedValueLabel.Text = string.Create(inv, $"{currentSpeed,5:F1} m/s");
@@ -257,40 +260,17 @@ public partial class SuitVisorHudNode : CanvasLayer
         if (!string.IsNullOrEmpty(visorState.PromptText))
         {
             _contextPromptLabel.Text = visorState.PromptText;
-            Color promptColor = visorState.CanOpenRefinery ? VisorWarning :
-                visorState.CanBoardShip ? VisorPrimary :
-                visorState.PromptText == "OUT OF RANGE" ? VisorWarning :
-                visorState.PromptText.StartsWith("NO STEEL") ? VisorWarning : VisorPrimary;
+            Color promptColor = visorState.PromptTone switch
+            {
+                PromptTone.Primary => VisorPrimary,
+                PromptTone.Warning => VisorWarning,
+                PromptTone.Danger => VisorDanger,
+                PromptTone.Muted => VisorMuted,
+                _ => VisorPrimary,
+            };
 
             _contextPromptLabel.AddThemeColorOverride("font_color", promptColor);
             _contextPromptLabel.Visible = true;
-        }
-        else if (isAimingAtDeposit && _currentSlot == 1)
-        {
-            if (drillStatus == DrillStatus.CargoFull || visorState.IsCargoFull)
-            {
-                _contextPromptLabel.Text = "CARGO FULL";
-                _contextPromptLabel.AddThemeColorOverride("font_color", VisorDanger);
-                _contextPromptLabel.Visible = true;
-            }
-            else if (drillStatus == DrillStatus.Depleted)
-            {
-                _contextPromptLabel.Text = "DEPLETED";
-                _contextPromptLabel.AddThemeColorOverride("font_color", VisorMuted);
-                _contextPromptLabel.Visible = true;
-            }
-            else if (drillStatus == DrillStatus.OutOfRange)
-            {
-                _contextPromptLabel.Text = "OUT OF RANGE";
-                _contextPromptLabel.AddThemeColorOverride("font_color", VisorWarning);
-                _contextPromptLabel.Visible = true;
-            }
-            else
-            {
-                _contextPromptLabel.Text = "[LMB] Drill Iron Ore";
-                _contextPromptLabel.AddThemeColorOverride("font_color", VisorWarning);
-                _contextPromptLabel.Visible = true;
-            }
         }
         else
         {

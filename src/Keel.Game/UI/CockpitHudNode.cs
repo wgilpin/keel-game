@@ -18,6 +18,7 @@ public partial class CockpitHudNode : CanvasLayer
     private static readonly Color AmberDanger = new(0xEF / 255f, 0x44 / 255f, 0x44 / 255f, 1.0f);
 
     private ReticleCanvasControl _reticle = null!;
+    private BearingTapeControl _bearingTape = null!;
 
     // Panels
     private Label _contactsLabel = null!;
@@ -50,6 +51,12 @@ public partial class CockpitHudNode : CanvasLayer
         };
         rootControl.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(rootControl);
+
+        // 0. Top-Center Bearing Tape (480px, clear of top-left debug overlay)
+        _bearingTape = new BearingTapeControl();
+        _bearingTape.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+        _bearingTape.Position = new Vector2(-240, 24);
+        rootControl.AddChild(_bearingTape);
 
         // 1. Bottom-Left Contacts Panel
         var contactsPanel = CreateStyledPanel(new Vector2(240, 100));
@@ -141,6 +148,24 @@ public partial class CockpitHudNode : CanvasLayer
         float cameraFov)
     {
         var inv = CultureInfo.InvariantCulture;
+
+        // 0. Bearing tape
+        Camera3D? cam = GetViewport()?.GetCamera3D();
+        var camForward = cam != null
+            ? new SimVector3(-cam.GlobalBasis.Z.X, -cam.GlobalBasis.Z.Y, -cam.GlobalBasis.Z.Z)
+            : -SimVector3.UnitZ;
+        var camRight = cam != null
+            ? new SimVector3(cam.GlobalBasis.X.X, cam.GlobalBasis.X.Y, cam.GlobalBasis.X.Z)
+            : SimVector3.UnitX;
+
+        IReadOnlyList<BearingMarkerResult> bearings = CockpitContactsModel.ComputeBearings(
+            shipWorldPosition,
+            camForward,
+            camRight);
+
+        float heading = VisorBearingTapeModel.ComputeHeadingDegrees(camForward);
+        IReadOnlyList<CompassTick> ticks = VisorBearingTapeModel.ComputeTicks(heading);
+        _bearingTape.UpdateData(ticks, bearings);
 
         // 1. Reticle projection
         _reticle.UpdateProjection(shipLocalVelocity, cameraFov);

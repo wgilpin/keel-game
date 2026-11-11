@@ -30,6 +30,21 @@ public static class CockpitContactsModel
             : [asteroid, station];
     }
 
+    public static readonly BearingLandmark[] CockpitLandmarks =
+    [
+        new BearingLandmark("STATION", SpaceArenaLayout.StationPosition),
+        new BearingLandmark("ASTEROID", SpaceArenaLayout.AsteroidPosition),
+    ];
+
+    public static IReadOnlyList<BearingMarkerResult> ComputeBearings(
+        Vector3 shipPosition,
+        Vector3 cameraForward,
+        Vector3 cameraRight,
+        float spanDegrees = VisorBearingTapeModel.DefaultSpanDegrees)
+    {
+        return VisorBearingTapeModel.Compute(shipPosition, cameraForward, cameraRight, CockpitLandmarks, spanDegrees);
+    }
+
     public static string FormatDistance(float distanceMeters)
     {
         if (distanceMeters < 1000.0f)

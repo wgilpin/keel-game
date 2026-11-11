@@ -140,4 +140,48 @@ public sealed class CockpitHudTests
         Assert.Equal("CFG: TUNING RELOADED", log.Entries[1]);
         Assert.Equal("NAV: APPROACHING STATION", log.Entries[2]);
     }
+
+    [Fact]
+    public void ContactsModel_ComputesStationAndAsteroidBearingsForCockpit()
+    {
+        // AC: CockpitContactsModel computes landmark bearing results for STATION and ASTEROID
+        // relative to cockpit position and camera basis, allowing the pilot to orient toward the station.
+        var shipPos = Vector3.Zero;
+        var camForward = -Vector3.UnitZ;
+        var camRight = Vector3.UnitX;
+
+        IReadOnlyList<BearingMarkerResult> bearings = CockpitContactsModel.ComputeBearings(
+            shipPos,
+            camForward,
+            camRight);
+
+        Assert.Equal(2, bearings.Count);
+
+        // Station at (0, 0, -500): directly ahead along -Z -> Azimuth 0, unclamped
+        BearingMarkerResult station = bearings[0];
+        Assert.Equal("STATION", station.Name);
+        Assert.Equal(500.0f, station.DistanceMeters, precision: 1);
+        Assert.Equal("500 m", station.FormattedDistance);
+        Assert.Equal(0.0f, station.AzimuthDegrees, precision: 2);
+        Assert.Equal(0.0f, station.NormalizedX, precision: 2);
+        Assert.False(station.IsClamped);
+        Assert.False(station.IsRear);
+
+        // Asteroid at (600, 150, -1200): forward-right -> lateral > 0, forward > 0
+        BearingMarkerResult asteroid = bearings[1];
+        Assert.Equal("ASTEROID", asteroid.Name);
+        Assert.True(asteroid.DistanceMeters > 1300f);
+        Assert.True(asteroid.AzimuthDegrees > 0f);
+
+        // When ship camera turns 180 degrees (looking along +Z), station is directly behind -> clamped to edge and IsRear
+        var rearBearings = CockpitContactsModel.ComputeBearings(
+            shipPos,
+            cameraForward: Vector3.UnitZ,
+            cameraRight: -Vector3.UnitX);
+
+        BearingMarkerResult rearStation = rearBearings[0];
+        Assert.Equal("STATION", rearStation.Name);
+        Assert.True(rearStation.IsClamped);
+        Assert.True(rearStation.IsRear);
+    }
 }

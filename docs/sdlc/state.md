@@ -35,7 +35,7 @@ Updated: 2026-11-11
   - [x] epic-02-refinery-conversion — merged 2026-11-10
   - [x] epic-03-refinery-terminal — merged 2026-11-10
 - [ ] 04-grid-construction — in progress
-  - [x] epic-01-face-snapped-placement — reviewed 2026-11-11
+  - [x] epic-01-face-snapped-placement — merged 2026-11-11
   - [ ] epic-02-placement-ghost-clearance — pending
   - [ ] epic-03-construction-hud-telemetry — pending
 

@@ -48,6 +48,9 @@ public partial class GameRoot : Node3D
     private float _targetedStationDistance = float.MaxValue;
     private bool _isRefineryOpen;
     private PlacementEvaluation _lastPlacementEval;
+    private float _grinderProgress;
+    private Int3? _lastGrinderTargetCell;
+    private GrinderStepResult _lastGrinderResult;
 
     public TuningConfig CurrentTuning => _tuningSession.Current;
     public PilotMode CurrentPilotMode => _pilotModeMachine.CurrentMode;
@@ -341,6 +344,38 @@ public partial class GameRoot : Node3D
             }
 
             _suitRig.SetDrillBeam(_lastDrillResult.BeamActive, targetHitPos);
+
+            if (activeSlot == GrinderSim.GrinderSlotIndex && !_isRefineryOpen)
+            {
+                _lastGrinderResult = GrinderSim.Step(
+                    _stationNode!.Grid,
+                    _pilotModeMachine.SuitInventory!,
+                    _targetedGridCell,
+                    _targetedBlockType,
+                    isFiring,
+                    activeSlot,
+                    _targetedStationDistance,
+                    CurrentTuning,
+                    (float)delta,
+                    ref _grinderProgress,
+                    ref _lastGrinderTargetCell);
+
+                if (_lastGrinderResult.BlockDeconstructed && _lastGrinderResult.DeconstructedCell.HasValue)
+                {
+                    _stationNode.RemoveBlockVisualAndCollider(_lastGrinderResult.DeconstructedCell.Value);
+                    _targetedGridCell = null;
+                    _targetedBlockType = BlockType.None;
+                }
+
+                _suitRig.SetGrinderBeam(_lastGrinderResult.BeamActive, targetHitPos);
+            }
+            else
+            {
+                _lastGrinderResult = default;
+                _grinderProgress = 0f;
+                _lastGrinderTargetCell = null;
+                _suitRig.SetGrinderBeam(false, Vector3.Zero);
+            }
         }
     }
 

@@ -37,3 +37,64 @@ When an `ArmorBlock` is deconstructed by the player, `StationGridNode.RemoveBloc
 - In `RemoveBlockVisualAndCollider`, remove both entries from their dictionaries and call `QueueFree()` on both nodes.
 - In `SuitRigNode`, implement `SetGrinderBeam(bool active, Vector3 worldHitPoint)` using an unshaded `ImmediateMesh` with bright electric cyan (`#38BDF8`) or cutting orange (`#FB923C`), mirroring the existing `SetDrillBeam` pattern.
 - In `GameRoot._PhysicsProcess`, handle continuous `isFiring` (holding LMB) for slot 3, distinct from the discrete edge-triggered click used for placement in slot 2.
+
+---
+
+## Build note — 2026-11-11
+
+**Result:** green
+
+### Tasks done
+
+- Added `_blockColliders` dictionary to `StationGridNode` to track each block's Jolt `CollisionShape3D`.
+- Implemented `RemoveBlockVisualAndCollider(Int3 cell)` in `StationGridNode` to safely remove and queue-free both visual nodes and collision shapes.
+- Added `SetGrinderBeam(bool active, Vector3 worldHitPoint)` to `SuitRigNode` rendering an unshaded electric cyan (`#38BDF8`) line from the tool muzzle to the targeted hit point.
+- Wired continuous held-`LMB` grinder execution in `GameRoot._PhysicsProcess` on slot 3, clearing beam on idle/release and removing station visual/collider on block deconstruction completion.
+- Added unit tests in `GrinderSimTests` covering raycast clearance updates and multi-frame deconstruction simulation.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Grid/GrinderSimTests.cs`:
+  - `BlockRemoval_UpdatesResolveHitCellAndEnablesSubsequentPlacement`
+  - `Step_SimulatesFullDeconstructionCycleWithGridRemoval`
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Output: `Passed!  - Failed:     0, Passed:    45, Skipped:     0, Total:    45, Duration: 39 ms - Keel.Sim.Tests.dll (net8.0)`
+
+### Deviations from the plan
+
+- None.
+
+### Follow-ups
+
+- None.
+
+---
+
+## Review — 2026-11-11
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `GrinderSimTests.BlockRemoval_UpdatesResolveHitCellAndEnablesSubsequentPlacement` |
+| AC-2 | yes | `GrinderSimTests.BlockRemoval_UpdatesResolveHitCellAndEnablesSubsequentPlacement` |
+| AC-3 | yes | `GrinderSimTests.Step_SimulatesFullDeconstructionCycleWithGridRemoval` |
+
+### Drift
+
+None. Preserves ADR 0001 architecture with physics/rendering strictly in `Keel.Game` and simulation rules in `Keel.Sim`.
+
+### Findings
+
+None.
+
+### Follow-ups
+
+None.
+
+

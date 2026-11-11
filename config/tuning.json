@@ -17,5 +17,6 @@
   "refineryCycleSeconds": 2.0,
   "refineryOrePerBlock": 2.0,
   "refineryInteractRange": 5.0,
-  "refineryBufferCapacity": 100.0
+  "refineryBufferCapacity": 100.0,
+  "buildRange": 7.5
 }

@@ -1,0 +1,38 @@
+# Phase 04 — Station Grid Construction
+
+**Goal:** Snap and place refined `SteelBlock` items onto adjacent faces of the station `BlockGrid` to close the gameplay loop.
+
+## Scope
+
+Completes the first-slice space-construction loop across `Keel.Sim` and `Keel.Game` by letting the player place refined `SteelBlock` items from suit hotbar slot `[2]` onto adjacent `2.5 m` faces of the station `BlockGrid`. Adds hot-reloadable `buildRange` tuning in `config/tuning.json`; introduces `BlockPlacementSim` (and supporting placement preview/clearance types) in `Keel.Sim.Grid` for 6-cardinal face-normal quantization, candidate `Int3` cell snapping, suit/ship station-local AABB clearance checks, refinery `+Z` port protection, and atomic `SuitInventory` -> `BlockGrid` consumption; updates `SuitVisorModel` and `DebugTelemetryFormatter` for construction prompts (`[LMB] Place Steel Block`, `INVALID CELL`, `OUT OF RANGE`, `NO STEEL BLOCKS — REFINE ORE AT STATION`), reticle range dimming, and `F3` candidate cell readouts; and adds discrete `LMB` click handling in `ShipInputReader`, collision-free `#38BDF8` / `#EF4444` `2.5 m` wireframe preview rendering in `BlockGhostNode`, and live runtime block mesh + `BoxShape3D` spawning on `StationGridNode` in `Keel.Game`.
+
+## Done criteria
+
+1. **DC-1** — `config/tuning.json` loads `buildRange` (`7.5 m` default) with hot-reload support and falls back safely to the previous `TuningConfig` on malformed JSON or non-positive/non-finite values, and aiming in `FloatingInSuit` with `[2] Steel Block` selected resolves any station raycast hit within `buildRange` to the struck `Int3` cell and the adjacent `Int3` candidate cell along the quantized 6-cardinal outward face normal (`±X`, `±Y`, `±Z`). (Covered by `epic-01-face-snapped-placement.md`)
+2. **DC-2** — Discrete `LMB` clicks in `FloatingInSuit` with `[2] Steel Block` selected and `>= 1` `SteelBlock` in `SuitInventory` atomically consume `1` `SteelBlock` and add `1` `BlockType.ArmorBlock` to `BlockGrid` at a valid candidate cell (spawning permanent `#64748B` block geometry, `#334155` seam lines, and a `2.5 m` `BoxShape3D` collider on `StationGridNode` that subsequent placements can immediately chain onto), without multi-placing while `LMB` is held or firing on mouse-recapture / modal-terminal clicks. (Covered by `epic-01-face-snapped-placement.md`)
+3. **DC-3** — Placement clearance validation marks a candidate `2.5 m` station cell as `InvalidCell` (rejecting `TryPlace` with zero `SteelBlock` loss) whenever the candidate cell is already occupied, is non-adjacent, seals the front `+Z` terminal port of a `BlockType.Refinery` cell, or intersects the station-local clearance bounds of the player's suit or ship. (Covered by `epic-02-placement-ghost-clearance.md`)
+4. **DC-4** — `BlockGhostNode` previews a collision-free `2.5 m` translucent (`35%` alpha) wireframe ghost cube snapped to the candidate `Int3` cell in `#38BDF8` cyan when `Valid` and `#EF4444` red when `InvalidCell`, and hides the ghost immediately when hotbar slot `[2]` is not active, `SuitInventory` holds `0` `SteelBlock` items, no station face is hit within `buildRange`, or `IsRefineryOpen` is `true`. (Covered by `epic-02-placement-ghost-clearance.md`)
+5. **DC-5** — With `[2] Steel Block` selected, the Suit Visor HUD surfaces `[LMB] Place Steel Block` (`#38BDF8`) on valid cells, `INVALID CELL` (`#EF4444`) on obstructed/invalid cells, `OUT OF RANGE` (`#F59E0B` with dimmed center reticle) on station hits beyond `buildRange`, and `NO STEEL BLOCKS — REFINE ORE AT STATION` when `SteelBlock` count is `0`—taking prompt priority over `[F] Board Ship` while aiming at station faces and isolating drill vs. build prompts across slots `[1]`–`[5]`. (Covered by `epic-03-construction-hud-telemetry.md`)
+6. **DC-6** — Executing the complete first-slice loop (`DrillSim` -> `RefinerySim` -> `BlockPlacementSim`) conserves item counts 1-for-1 from mined `IronOre` through refined `SteelBlock` withdrawals to placed `6`-connected `BlockGrid` cells, keeps `[F]` refinery and ship-boarding transitions working across all hotbar slots, surfaces the candidate `Int3` cell in `F3` telemetry, and preserves placed station blocks and remaining suit cargo across boarding and re-exiting the ship. (Covered by `epic-03-construction-hud-telemetry.md`)
+7. **DC-7** — Launching `Keel.Game` in Godot 4.7 (.NET) lets Will complete the full grey-box space-construction loop inside the 20 km arena: fly the 6DoF ship to the asteroid, exit in the zero-g suit (`F`), drill `IronOre` (`[1]`), refine and withdraw `SteelBlock` items at the station Refinery Terminal (`F`, `E`, `R`), press `2` to preview the `#38BDF8` cyan (valid) and `#EF4444` red (suit-obstructed or refinery `+Z` port) `2.5 m` wireframe ghost cube with `F3` candidate cell telemetry, and click `LMB` to snap permanent `#64748B` blocks with working Jolt collision onto the station grid. (Covered by `epic-01-face-snapped-placement.md`, `epic-02-placement-ghost-clearance.md`, `epic-03-construction-hud-telemetry.md`)
+
+## Not in this phase
+
+- Removing or grinding placed station blocks
+- Dynamic `RigidBody3D` ship grids or ship block construction
+- Block rotation, non-cubic slope shapes, or placing new `Refinery`/`Core` blocks
+- Power networks, conveyor logistics, save/load persistence, and coordinates beyond 20 km
+
+## Epics
+
+Epics run sequentially (`01` -> `02` -> `03`) because each extends `BlockPlacementSim`, `StationGridNode`, and `GameRoot` on top of the previous slice; none are independent.
+
+1. `epic-01-face-snapped-placement.md` — Snap station raycast hits to adjacent `Int3` cells within `buildRange` and click `LMB` with `[2] Steel Block` to consume `1` `SteelBlock` and spawn permanent station geometry and Jolt collision (`DC-1`, `DC-2`, `DC-7`).
+2. `epic-02-placement-ghost-clearance.md` — Render the `#38BDF8` valid / `#EF4444` invalid `2.5 m` wireframe ghost cube in `BlockGhostNode` and enforce suit/ship AABB clearance and refinery `+Z` port protection (`DC-3`, `DC-4`, `DC-7`).
+3. `epic-03-construction-hud-telemetry.md` — Surface visor construction prompts (`[LMB] Place Steel Block`, `INVALID CELL`, `OUT OF RANGE`, `NO STEEL BLOCKS`), out-of-range reticle dimming, `F3` candidate cell telemetry, and full-loop conservation invariants (`DC-5`, `DC-6`, `DC-7`).
+
+## Risks
+
+- **Multi-placement runaway on held `LMB`:** Using continuous `IsFireHeld` for block placement would place a block on physics frame `N` and immediately strike the new block `2.5 m` closer on frame `N + 1`, draining the player's `SteelBlock` stack in a single click. `ShipInputReader` must expose an edge-triggered discrete click (`ConsumePrimaryActionClick`) recorded only while the mouse cursor is already `Captured` and no modal terminal is open.
+- **Physics self-trapping inside newly placed `2.5 m` cells:** A `2.5 m` block placed onto a struck face extends `2.5 m` outward toward the camera; if the player floats `< 2.9 m` directly in front of the face (or parks the ship against it), spawning a solid `BoxShape3D` overlaps the Jolt `RigidBody3D` and violently ejects or traps it. `BlockPlacementSim` must reject candidate cells intersecting suit or ship clearance bounds in station-local space and display the `#EF4444` invalid ghost.
+- **Sealing the Refinery port with no grinder in Phase 04:** Because block removal is out of scope, placing an `ArmorBlock` at `Int3(0, 0, 4)` directly over the Refinery's `+Z` amber port would cover the terminal trim. Rejecting candidate cells directly in front of any `BlockType.Refinery`'s `+Z` face prevents soft-locking the refinery visual port while still allowing construction on its other faces and surrounding station collar.

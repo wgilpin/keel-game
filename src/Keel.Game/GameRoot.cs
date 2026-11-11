@@ -97,6 +97,7 @@ public partial class GameRoot : Node3D
 
         if (_isRefineryOpen)
         {
+            _inputReader.ConsumePrimaryActionClick();
             if (_inputReader.ConsumeInteractToggle() || _inputReader.ConsumeMouseCaptureToggle())
             {
                 CloseRefineryTerminal();
@@ -220,6 +221,7 @@ public partial class GameRoot : Node3D
         // Apply physics flight step
         if (_pilotModeMachine.Mode == PilotMode.SeatedInCockpit)
         {
+            _inputReader.ConsumePrimaryActionClick();
             _drillProgress = 0.0f;
             _lastDrillResult = default;
             _isAimingAtDeposit = false;
@@ -251,6 +253,9 @@ public partial class GameRoot : Node3D
             _targetedGridCell = null;
             _targetedBlockType = BlockType.None;
             _targetedStationDistance = float.MaxValue;
+            bool hasStationHit = false;
+            SimVector3 simLocalHitPos = SimVector3.Zero;
+            SimVector3 simLocalHitNormal = SimVector3.Zero;
 
             var hit = spaceState.IntersectRay(query);
             if (hit.Count > 0)
@@ -266,12 +271,34 @@ public partial class GameRoot : Node3D
                     _targetedGridCell = cell;
                     _targetedBlockType = bType;
                     _targetedStationDistance = targetedDistance;
+                    hasStationHit = _stationNode.TryGetStationLocalRay(targetHitPos, hitNormal, out simLocalHitPos, out simLocalHitNormal);
                 }
             }
 
             _isAimingAtDeposit = targetedDeposit != null;
             bool isFiring = !_isRefineryOpen && _inputReader.IsFireHeld(isCaptured);
             int activeSlot = _suitVisorHud.CurrentActiveSlot;
+            bool primaryClicked = _inputReader.ConsumePrimaryActionClick();
+
+            if (activeSlot == BlockPlacementSim.BuildSlotIndex && !_isRefineryOpen && _stationNode != null)
+            {
+                var placementEval = BlockPlacementSim.Evaluate(
+                    grid: _stationNode.Grid,
+                    isFloatingInSuit: true,
+                    activeSlot: activeSlot,
+                    steelBlockCount: _pilotModeMachine.SuitInventory.GetCount(ItemId.SteelBlock),
+                    hasStationHit: hasStationHit,
+                    localHitPosition: simLocalHitPos,
+                    localHitNormal: simLocalHitNormal,
+                    hitDistance: targetedDistance,
+                    buildRange: CurrentTuning.BuildRange,
+                    isModalOpen: _isRefineryOpen);
+
+                if (primaryClicked && BlockPlacementSim.TryPlace(_stationNode.Grid, _pilotModeMachine.SuitInventory, in placementEval, out _))
+                {
+                    _stationNode.AddBlockVisualAndCollider(placementEval.CandidateCell!.Value, BlockType.ArmorBlock);
+                }
+            }
 
             _lastDrillResult = DrillSim.Step(
                 targetedDeposit?.State,

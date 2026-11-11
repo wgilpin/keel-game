@@ -10,6 +10,7 @@ public sealed class ShipInputReader
     private SimVector2 _accumulatedMouseDelta;
     private bool _pendingCaptureToggle;
     private bool _pendingRecaptureClick;
+    private bool _pendingPrimaryActionClick;
     private bool _pendingDampenerToggle;
     private bool _pendingInteractToggle;
     private bool _pendingDepositToggle;
@@ -62,9 +63,16 @@ public sealed class ShipInputReader
                 _pendingSlotSelection = 5;
             }
         }
-        else if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } && !isMouseCaptured)
+        else if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true })
         {
-            _pendingRecaptureClick = true;
+            if (!isMouseCaptured)
+            {
+                _pendingRecaptureClick = true;
+            }
+            else
+            {
+                _pendingPrimaryActionClick = true;
+            }
         }
         else if (@event is InputEventMouseMotion motion && isMouseCaptured)
         {
@@ -83,6 +91,13 @@ public sealed class ShipInputReader
     {
         bool clicked = _pendingRecaptureClick;
         _pendingRecaptureClick = false;
+        return clicked;
+    }
+
+    public bool ConsumePrimaryActionClick()
+    {
+        bool clicked = _pendingPrimaryActionClick;
+        _pendingPrimaryActionClick = false;
         return clicked;
     }
 

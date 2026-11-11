@@ -53,6 +53,11 @@ public partial class StationGridNode : Node3D
 
     public void AddBlockVisualAndCollider(Int3 cell, BlockType type)
     {
+        if (_blockVisuals.ContainsKey(cell))
+        {
+            return;
+        }
+
         Vector3 localCenter = new(
             cell.X * BlockGrid.CellSize,
             cell.Y * BlockGrid.CellSize,
@@ -164,5 +169,27 @@ public partial class StationGridNode : Node3D
         var simLocalNormal = new SimVector3(localNormal.X, localNormal.Y, localNormal.Z);
 
         return _grid.ResolveHitCell(simLocalPos, simLocalNormal, out cell, out type);
+    }
+
+    /// <summary>
+    /// Transforms world raycast hit position and outward normal into station-local SimVector3 coordinates.
+    /// </summary>
+    public bool TryGetStationLocalRay(
+        Vector3 globalHitPosition,
+        Vector3 globalHitNormal,
+        out SimVector3 localPos,
+        out SimVector3 localNormal)
+    {
+        Transform3D invTransform = GlobalTransform.AffineInverse();
+        Vector3 lPos = invTransform * globalHitPosition;
+        Vector3 lNorm = invTransform.Basis * globalHitNormal;
+        if (lNorm.LengthSquared() > 0.0001f)
+        {
+            lNorm = lNorm.Normalized();
+        }
+
+        localPos = new SimVector3(lPos.X, lPos.Y, lPos.Z);
+        localNormal = new SimVector3(lNorm.X, lNorm.Y, lNorm.Z);
+        return true;
     }
 }

@@ -36,6 +36,7 @@ public partial class GameRoot : Node3D
     private RefineryTerminalNode _refineryTerminal = null!;
     private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
+    private readonly PersistenceSession _persistenceSession = new();
     private readonly PilotModeStateMachine _pilotModeMachine = new();
 
     private string _configPath = string.Empty;
@@ -106,6 +107,18 @@ public partial class GameRoot : Node3D
     {
         bool isCaptured = Godot.Input.MouseMode == Godot.Input.MouseModeEnum.Captured;
         _inputReader.HandleInputEvent(@event, isCaptured);
+
+        if (_inputReader.ConsumeQuickSaveToggle())
+        {
+            QuickSave();
+            return;
+        }
+
+        if (_inputReader.ConsumeQuickLoadToggle())
+        {
+            QuickLoad();
+            return;
+        }
 
         if (_isRefineryOpen)
         {
@@ -397,6 +410,7 @@ public partial class GameRoot : Node3D
         _f3WasPressed = f3Pressed;
 
         _tuningSession.Tick((float)delta);
+        _persistenceSession.Tick((float)delta);
         PollConfigReload(delta);
 
         bool isSuit = _pilotModeMachine.Mode == PilotMode.FloatingInSuit;
@@ -431,7 +445,10 @@ public partial class GameRoot : Node3D
             TargetBlockType: _targetedBlockType,
             PlacementCandidateCell: placementCandidate,
             IsPlacementValid: isPlacementValid,
-            GrinderProgress: grinderTelemetry);
+            GrinderProgress: grinderTelemetry,
+            PersistenceStatus: _persistenceSession.Status,
+            LastPersistenceError: _persistenceSession.LastError,
+            IsPersistenceFlashActive: _persistenceSession.IsFlashActive);
 
         _debugOverlay.Render(in snapshot);
 
@@ -479,7 +496,9 @@ public partial class GameRoot : Node3D
                 targetedBlockDistance: _targetedStationDistance,
                 placementStatus: _lastPlacementEval.Status,
                 grinderStatus: _lastGrinderResult.Status,
-                grinderProgress: _grinderProgress);
+                grinderProgress: _grinderProgress,
+                persistenceStatus: _persistenceSession.Status,
+                isPersistenceFlashActive: _persistenceSession.IsFlashActive);
 
             if (_isRefineryOpen)
             {
@@ -656,6 +675,46 @@ public partial class GameRoot : Node3D
         WorldSaveStore.SaveToFile(_savePath, snapshot);
     }
 
+    private void QuickSave()
+    {
+        SaveWorldState();
+        _cockpitHud?.InfoLog.Push("SYS: WORLD SAVED");
+        _persistenceSession.RecordSaved();
+    }
+
+    private void QuickLoad()
+    {
+        if (_isRefineryOpen)
+        {
+            CloseRefineryTerminal();
+        }
+
+        _drillProgress = 0f;
+        _lastDrillResult = default;
+        _isAimingAtDeposit = false;
+        _suitRig.SetDrillBeam(false, Vector3.Zero);
+
+        _grinderProgress = 0f;
+        _lastGrinderTargetCell = null;
+        _lastGrinderResult = default;
+        _suitRig.SetGrinderBeam(false, Vector3.Zero);
+
+        _lastPlacementEval = default;
+        _stationNode?.GhostNode.HideGhost();
+
+        var loadResult = WorldSaveStore.LoadFromFile(_savePath);
+        if (!loadResult.IsSuccess || loadResult.Data == null)
+        {
+            _cockpitHud?.InfoLog.Push("ERR: SAVE LOAD FAILED");
+            _persistenceSession.RecordError(loadResult.ErrorMessage ?? "File corrupt");
+            return;
+        }
+
+        ApplyWorldSnapshot(loadResult.Data);
+        _cockpitHud?.InfoLog.Push("SYS: WORLD LOADED");
+        _persistenceSession.RecordLoaded();
+    }
+
     private void LoadWorldStateOnStartup()
     {
         var loadResult = WorldSaveStore.LoadFromFile(_savePath);
@@ -664,7 +723,11 @@ public partial class GameRoot : Node3D
             return;
         }
 
-        WorldSaveData data = loadResult.Data;
+        ApplyWorldSnapshot(loadResult.Data);
+    }
+
+    private void ApplyWorldSnapshot(WorldSaveData data)
+    {
         var depositNodes = GetOreDepositNodes();
         var depositStates = depositNodes.ConvertAll(n => n.State);
 

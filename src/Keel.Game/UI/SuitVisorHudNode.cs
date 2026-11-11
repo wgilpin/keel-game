@@ -195,7 +195,9 @@ public partial class SuitVisorHudNode : CanvasLayer
         float targetedBlockDistance = float.MaxValue,
         PlacementStatus placementStatus = PlacementStatus.NoTarget,
         GrinderStatus grinderStatus = GrinderStatus.Idle,
-        float grinderProgress = 0.0f)
+        float grinderProgress = 0.0f,
+        Keel.Sim.Persistence.PersistenceStatus persistenceStatus = Keel.Sim.Persistence.PersistenceStatus.None,
+        bool isPersistenceFlashActive = false)
     {
         var inv = CultureInfo.InvariantCulture;
 
@@ -236,7 +238,9 @@ public partial class SuitVisorHudNode : CanvasLayer
             drillStatus: drillStatus,
             isAimingAtDeposit: isAimingAtDeposit,
             grinderStatus: grinderStatus,
-            grinderRange: tuning.GrinderRange);
+            grinderRange: tuning.GrinderRange,
+            persistenceStatus: persistenceStatus,
+            isPersistenceFlashActive: isPersistenceFlashActive);
 
         _currentSlot = visorState.ActiveSlot;
         _reticle.IsTargetOutOfRange = visorState.IsTargetOutOfRange;

@@ -17,7 +17,10 @@ public readonly record struct DebugTelemetrySnapshot(
     BlockType TargetBlockType = BlockType.None,
     Int3? PlacementCandidateCell = null,
     bool? IsPlacementValid = null,
-    float? GrinderProgress = null);
+    float? GrinderProgress = null,
+    Persistence.PersistenceStatus PersistenceStatus = Persistence.PersistenceStatus.None,
+    string? LastPersistenceError = null,
+    bool IsPersistenceFlashActive = false);
 
 public static class DebugTelemetryFormatter
 {
@@ -32,6 +35,26 @@ public static class DebugTelemetryFormatter
             : snapshot.IsReloadFlashActive
                 ? "RELOADED"
                 : "OK";
+
+        string sav;
+        if (!string.IsNullOrEmpty(snapshot.LastPersistenceError))
+        {
+            sav = $"SAV  ERR ({snapshot.LastPersistenceError})";
+        }
+        else if (snapshot.IsPersistenceFlashActive)
+        {
+            sav = snapshot.PersistenceStatus switch
+            {
+                Persistence.PersistenceStatus.Saved => "SAV  SAVED",
+                Persistence.PersistenceStatus.Loaded => "SAV  LOADED",
+                _ => "SAV  OK",
+            };
+        }
+        else
+        {
+            sav = "SAV  NONE";
+        }
+
         string mode = snapshot.Mode == PilotMode.FloatingInSuit ? "MODE SUIT" : "MODE COCKPIT";
 
         string gridText = snapshot.TargetGridCell.HasValue && snapshot.TargetBlockType != BlockType.None
@@ -55,6 +78,6 @@ public static class DebugTelemetryFormatter
             $"VEL  {snapshot.LinearVelocity.X,8:F1} {snapshot.LinearVelocity.Y,8:F1} {snapshot.LinearVelocity.Z,8:F1} m/s ({speed:F1})\n" +
             $"ANG  {snapshot.AngularVelocity.X,8:F2} {snapshot.AngularVelocity.Y,8:F2} {snapshot.AngularVelocity.Z,8:F2} rad/s\n" +
             $"DMP  {dmp,-8} ORG {originDist,8:F1} m\n" +
-            $"CFG  {cfg}");
+            $"CFG  {cfg,-15} {sav}");
     }
 }

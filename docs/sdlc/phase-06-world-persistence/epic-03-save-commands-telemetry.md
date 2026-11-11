@@ -41,3 +41,69 @@ Pressing `F5` at any point during flight or EVA immediately saves the world to `
 
 - Model `PersistenceSession` directly after `TuningSession` (`FlashDurationSeconds = 2.0f`) so flash timing and error tracking follow the exact same pure-C# pattern in `Keel.Sim`.
 - Handle edge-triggered `Key.F5` and `Key.F9` (`Pressed: true, Echo: false`) in `ShipInputReader.HandleInputEvent`, and ensure `GameRoot._Input` processes `ConsumeQuickSaveToggle()` / `ConsumeQuickLoadToggle()` before the `_isRefineryOpen` early return so saving or reloading still works if the Refinery Terminal is open.
+
+---
+
+## Build note — 2026-11-11
+
+**Result:** green
+
+### Tasks done
+
+- Implemented `PersistenceSession` in `Keel.Sim.Persistence` tracking `PersistenceStatus` (`None`, `Saved`, `Loaded`, `Error`), `LastError`, and a 2.0s flash notification decay timer.
+- Updated `SuitVisorModel.Compute` to surface high-priority transient prompts (`WORLD SAVED`, `WORLD LOADED`, or `SAVE LOAD FAILED`) while the persistence flash timer is active.
+- Extended `DebugTelemetrySnapshot` and `DebugTelemetryFormatter` to format persistence telemetry (`SAV  SAVED`, `SAV  LOADED`, `SAV  OK`, `SAV  NONE`, or `SAV  ERR (<error>)`).
+- Added `Key.F5` quicksave and `Key.F9` quickload handling to `ShipInputReader`.
+- Implemented `QuickSave` and `QuickLoad` in `GameRoot`, closing modals, resetting beams/ghosts, and pushing entries to `_cockpitHud.InfoLog`.
+- Refactored `ApplyWorldSnapshot` in `GameRoot` for unified startup load and live `F9` scene reload.
+- Added unit tests in `WorldPersistenceTests`, `PersistenceSessionTests`, and `SuitVisorHudTests`.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Persistence/WorldPersistenceTests.cs`:
+  - `FullLoop_QuickloadRollsBackMutatedWorldStateAndConservesItems`
+- `tests/Keel.Sim.Tests/Persistence/PersistenceSessionTests.cs`:
+  - `Session_TracksSaveLoadFlashTimerAndSurfacesErrorsInTelemetry`
+- `tests/Keel.Sim.Tests/Hud/SuitVisorHudTests.cs`:
+  - `VisorModel_SurfacesTransientSaveLoadNotification`
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Output: `Passed!  - Failed:     0, Passed:    62, Skipped:     0, Total:    62, Duration: 157 ms - Keel.Sim.Tests.dll (net8.0)`
+
+### Deviations from the plan
+
+- None.
+
+### Follow-ups
+
+- None.
+
+---
+
+## Review — 2026-11-11
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `WorldPersistenceTests.FullLoop_QuickloadRollsBackMutatedWorldStateAndConservesItems` |
+| AC-2 | yes | `ShipInputReader.ConsumeQuickSaveToggle`, `ShipInputReader.ConsumeQuickLoadToggle`, `GameRoot.QuickSave`, `GameRoot.QuickLoad` |
+| AC-3 | yes | `PersistenceSessionTests.Session_TracksSaveLoadFlashTimerAndSurfacesErrorsInTelemetry`, `SuitVisorHudTests.VisorModel_SurfacesTransientSaveLoadNotification` |
+
+### Drift
+
+None. Preserves pure C# HUD model and session timing in `Keel.Sim` while keeping engine input/scene resets in `Keel.Game`.
+
+### Findings
+
+None.
+
+### Follow-ups
+
+None.
+
+

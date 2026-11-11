@@ -15,6 +15,8 @@ public sealed class ShipInputReader
     private bool _pendingInteractToggle;
     private bool _pendingDepositToggle;
     private bool _pendingWithdrawToggle;
+    private bool _pendingQuickSaveToggle;
+    private bool _pendingQuickLoadToggle;
     private int? _pendingSlotSelection;
 
     public void HandleInputEvent(InputEvent @event, bool isMouseCaptured)
@@ -41,6 +43,14 @@ public sealed class ShipInputReader
             else if (key == Key.R)
             {
                 _pendingWithdrawToggle = true;
+            }
+            else if (key == Key.F5)
+            {
+                _pendingQuickSaveToggle = true;
+            }
+            else if (key == Key.F9)
+            {
+                _pendingQuickLoadToggle = true;
             }
             else if (key is Key.Key1 or Key.Kp1)
             {
@@ -126,6 +136,20 @@ public sealed class ShipInputReader
     {
         bool toggled = _pendingWithdrawToggle;
         _pendingWithdrawToggle = false;
+        return toggled;
+    }
+
+    public bool ConsumeQuickSaveToggle()
+    {
+        bool toggled = _pendingQuickSaveToggle;
+        _pendingQuickSaveToggle = false;
+        return toggled;
+    }
+
+    public bool ConsumeQuickLoadToggle()
+    {
+        bool toggled = _pendingQuickLoadToggle;
+        _pendingQuickLoadToggle = false;
         return toggled;
     }
 

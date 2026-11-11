@@ -59,7 +59,9 @@ public static class SuitVisorModel
         Mining.DrillStatus drillStatus = Mining.DrillStatus.Idle,
         bool isAimingAtDeposit = false,
         GrinderStatus grinderStatus = GrinderStatus.Idle,
-        float grinderRange = 5.0f)
+        float grinderRange = 5.0f,
+        Persistence.PersistenceStatus persistenceStatus = Persistence.PersistenceStatus.None,
+        bool isPersistenceFlashActive = false)
     {
         // 1. Hotbar slot clamping / preservation
         int activeSlot = currentSlot;
@@ -93,7 +95,25 @@ public static class SuitVisorModel
         PromptTone promptTone = PromptTone.None;
         bool isTargetOutOfRange = false;
 
-        if (targetedBlockType == BlockType.Refinery)
+        if (isPersistenceFlashActive && persistenceStatus != Persistence.PersistenceStatus.None)
+        {
+            switch (persistenceStatus)
+            {
+                case Persistence.PersistenceStatus.Saved:
+                    prompt = "WORLD SAVED";
+                    promptTone = PromptTone.Primary;
+                    break;
+                case Persistence.PersistenceStatus.Loaded:
+                    prompt = "WORLD LOADED";
+                    promptTone = PromptTone.Primary;
+                    break;
+                case Persistence.PersistenceStatus.Error:
+                    prompt = "SAVE LOAD FAILED";
+                    promptTone = PromptTone.Danger;
+                    break;
+            }
+        }
+        else if (targetedBlockType == BlockType.Refinery)
         {
             if (targetedBlockDistance <= refineryInteractRange)
             {

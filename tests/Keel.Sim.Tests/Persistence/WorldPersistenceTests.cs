@@ -429,4 +429,98 @@ public class WorldPersistenceTests
 
         Assert.Equal(30, worldDeposits[3].RemainingUnits); // Unmatched retained initial
     }
+
+    [Fact]
+    public void FullLoop_QuickloadRollsBackMutatedWorldStateAndConservesItems()
+    {
+        var pilotMachine = new PilotModeStateMachine();
+        pilotMachine.Reset(PilotMode.FloatingInSuit);
+
+        var suit = new SuitInventory(50);
+        suit.Add(ItemId.IronOre, 5);
+        suit.Add(ItemId.SteelBlock, 1);
+
+        var grid = StationBlueprint.CreateDefault();
+        grid.TryPlaceBlock(new Int3(1, 1, 2), BlockType.ArmorBlock, out _);
+        int savedGridCount = grid.Count;
+
+        var refinery = new RefineryState();
+        refinery.InputInventory.Add(ItemId.IronOre, 10);
+        refinery.OutputInventory.Add(ItemId.SteelBlock, 2);
+        refinery.CycleProgress = 0.5f;
+        refinery.Status = RefineryStatus.Refining;
+
+        var deposits = new List<Keel.Sim.Mining.OreDepositState>
+        {
+            new Keel.Sim.Mining.OreDepositState(30, ItemId.IronOre, "asteroid-01-seam-0") { RemainingUnits = 18 },
+            new Keel.Sim.Mining.OreDepositState(25, ItemId.IronOre, "asteroid-01-seam-1") { RemainingUnits = 0 },
+        };
+
+        var shipKin = new KinematicsSaveData(
+            new Vector3(100f, 50f, -200f),
+            Quaternion.Identity,
+            new Vector3(10f, 0f, 0f),
+            Vector3.Zero,
+            true);
+
+        var suitKin = new KinematicsSaveData(
+            new Vector3(10f, 2f, -500f),
+            Quaternion.Identity,
+            new Vector3(1f, 1f, 1f),
+            Vector3.Zero,
+            false);
+
+        // Snapshot checkpoint
+        var checkpoint = WorldStateMapper.CreateSnapshot(
+            pilotMachine.Mode,
+            shipKin,
+            suitKin,
+            activeSuitSlot: 2,
+            suit,
+            stationGrid: grid,
+            refinery: refinery,
+            oreDeposits: deposits);
+
+        string checkpointJson = WorldSaveSerializer.Serialize(checkpoint);
+
+        // Mutate everything
+        pilotMachine.Reset(PilotMode.SeatedInCockpit);
+        suit.Clear();
+        suit.Add(ItemId.IronOre, 40);
+        grid.RemoveBlock(new Int3(1, 1, 2), out _);
+        refinery.InputInventory.Clear();
+        refinery.OutputInventory.Clear();
+        deposits[0].Extract(18); // now depleted
+
+        Assert.Equal(savedGridCount - 1, grid.Count);
+        Assert.Equal(0, deposits[0].RemainingUnits);
+        Assert.Equal(PilotMode.SeatedInCockpit, pilotMachine.Mode);
+
+        // Reload from checkpoint
+        var loadResult = WorldSaveSerializer.Deserialize(checkpointJson);
+        Assert.True(loadResult.IsSuccess, loadResult.ErrorMessage);
+        var loaded = loadResult.Data!;
+
+        WorldStateMapper.Apply(
+            loaded,
+            pilotMachine,
+            suit,
+            stationGrid: grid,
+            refinery: refinery,
+            oreDeposits: deposits);
+
+        // Verify full rollback
+        Assert.Equal(PilotMode.FloatingInSuit, pilotMachine.Mode);
+        Assert.Equal(5, suit.GetCount(ItemId.IronOre));
+        Assert.Equal(1, suit.GetCount(ItemId.SteelBlock));
+        Assert.Equal(savedGridCount, grid.Count);
+        Assert.True(grid.HasBlock(new Int3(1, 1, 2)));
+        Assert.Equal(10, refinery.InputInventory.GetCount(ItemId.IronOre));
+        Assert.Equal(2, refinery.OutputInventory.GetCount(ItemId.SteelBlock));
+        Assert.Equal(0.5f, refinery.CycleProgress, precision: 3);
+        Assert.Equal(18, deposits[0].RemainingUnits);
+        Assert.False(deposits[0].IsDepleted);
+        Assert.Equal(0, deposits[1].RemainingUnits);
+        Assert.True(deposits[1].IsDepleted);
+    }
 }

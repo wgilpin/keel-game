@@ -704,4 +704,71 @@ public sealed class SuitVisorHudTests
         Assert.Equal(PromptTone.Primary, nearShip.PromptTone);
         Assert.True(nearShip.CanBoardShip);
     }
+
+    [Fact]
+    public void VisorModel_SurfacesTransientSaveLoadNotification()
+    {
+        // 1. Saved notification
+        SuitVisorState savedState = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 0,
+            cargoCapacity: 50,
+            suitToShipDistance: 100f,
+            shipInteractRange: 5f,
+            currentSpeed: 0f,
+            dampenersEnabled: true,
+            persistenceStatus: Keel.Sim.Persistence.PersistenceStatus.Saved,
+            isPersistenceFlashActive: true);
+
+        Assert.Equal("WORLD SAVED", savedState.PromptText);
+        Assert.Equal(PromptTone.Primary, savedState.PromptTone);
+
+        // 2. Loaded notification
+        SuitVisorState loadedState = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 0,
+            cargoCapacity: 50,
+            suitToShipDistance: 100f,
+            shipInteractRange: 5f,
+            currentSpeed: 0f,
+            dampenersEnabled: true,
+            persistenceStatus: Keel.Sim.Persistence.PersistenceStatus.Loaded,
+            isPersistenceFlashActive: true);
+
+        Assert.Equal("WORLD LOADED", loadedState.PromptText);
+        Assert.Equal(PromptTone.Primary, loadedState.PromptTone);
+
+        // 3. Error notification
+        SuitVisorState errorState = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 0,
+            cargoCapacity: 50,
+            suitToShipDistance: 100f,
+            shipInteractRange: 5f,
+            currentSpeed: 0f,
+            dampenersEnabled: true,
+            persistenceStatus: Keel.Sim.Persistence.PersistenceStatus.Error,
+            isPersistenceFlashActive: true);
+
+        Assert.Equal("SAVE LOAD FAILED", errorState.PromptText);
+        Assert.Equal(PromptTone.Danger, errorState.PromptTone);
+
+        // 4. Inactive flash reverts to standard prompt
+        SuitVisorState expiredState = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 0,
+            cargoCapacity: 50,
+            suitToShipDistance: 3f,
+            shipInteractRange: 5f,
+            currentSpeed: 0f,
+            dampenersEnabled: true,
+            persistenceStatus: Keel.Sim.Persistence.PersistenceStatus.Saved,
+            isPersistenceFlashActive: false);
+
+        Assert.Equal("[F] Board Ship", expiredState.PromptText);
+    }
 }

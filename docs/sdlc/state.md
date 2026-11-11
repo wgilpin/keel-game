@@ -48,7 +48,7 @@ Updated: 2026-11-11
   - [x] epic-03-save-commands-telemetry — merged 2026-11-11
 - [ ] 07-station-power-storage — in progress
   - [x] epic-01-solar-power-loop — merged 2026-11-11
-  - [ ] epic-02-cargo-container-blocks — reviewed 2026-11-11
+  - [x] epic-02-cargo-container-blocks — merged 2026-11-11
   - [ ] epic-03-cargo-terminal-ui — pending
 - [ ] 08-dynamic-ship-construction — pending
 - [ ] 09-multi-asteroid-exploration — pending

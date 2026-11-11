@@ -21,10 +21,12 @@ public partial class StationGridNode : Node3D
     private StaticBody3D _staticBody = null!;
     private readonly Dictionary<Int3, Node3D> _blockVisuals = new();
     private readonly RefineryState _refinery = new();
+    private BlockGhostNode _ghostNode = null!;
 
     public BlockGrid Grid => _grid;
     public StaticBody3D StaticBody => _staticBody;
     public RefineryState Refinery => _refinery;
+    public BlockGhostNode GhostNode => _ghostNode;
 
     public StationGridNode(BlockGrid? initialGrid = null)
     {
@@ -39,6 +41,9 @@ public partial class StationGridNode : Node3D
 
         _staticBody = new StaticBody3D { Name = "StationBody" };
         AddChild(_staticBody);
+
+        _ghostNode = new BlockGhostNode();
+        AddChild(_ghostNode);
 
         BuildAllBlockVisualsAndColliders();
     }

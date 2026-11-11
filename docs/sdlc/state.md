@@ -38,10 +38,10 @@ Updated: 2026-11-11
   - [x] epic-01-face-snapped-placement — merged 2026-11-11
   - [x] epic-02-placement-ghost-clearance — merged 2026-11-11
   - [x] epic-03-construction-hud-telemetry — merged 2026-11-11
-- [ ] 05-tool-deconstruction — in progress
+- [x] 05-tool-deconstruction — done
   - [x] epic-01-grinder-sim — merged 2026-11-11
   - [x] epic-02-station-block-removal — merged 2026-11-11
-  - [x] epic-03-grinder-hud-telemetry — reviewed 2026-11-11
+  - [x] epic-03-grinder-hud-telemetry — merged 2026-11-11
 - [ ] 06-world-persistence — pending
 - [ ] 07-station-power-storage — pending
 - [ ] 08-dynamic-ship-construction — pending

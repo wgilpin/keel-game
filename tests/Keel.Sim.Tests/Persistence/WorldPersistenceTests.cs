@@ -1,0 +1,231 @@
+using System;
+using System.IO;
+using System.Numerics;
+using Keel.Sim.Inventory;
+using Keel.Sim.Persistence;
+using Keel.Sim.Pilot;
+using Xunit;
+
+namespace Keel.Sim.Tests.Persistence;
+
+public class WorldPersistenceTests
+{
+    [Fact]
+    public void RoundTrip_PreservesShipSuitPilotModeAndInventoryInvariants()
+    {
+        var originalShip = new KinematicsSaveData(
+            Position: new Vector3(10f, 20f, -30f),
+            Orientation: Quaternion.CreateFromYawPitchRoll(0.5f, -0.2f, 0.1f),
+            LinearVelocity: new Vector3(5f, -2f, 15f),
+            AngularVelocity: new Vector3(0.1f, -0.05f, 0.2f),
+            DampenersEnabled: true);
+
+        var originalSuit = new SuitSaveData(
+            Kinematics: new KinematicsSaveData(
+                Position: new Vector3(12f, 20f, -30f),
+                Orientation: Quaternion.CreateFromYawPitchRoll(0.1f, 0f, 0f),
+                LinearVelocity: new Vector3(1f, 0f, 2f),
+                AngularVelocity: Vector3.Zero,
+                DampenersEnabled: false),
+            ActiveHotbarSlot: 3);
+
+        var inventoryItems = new[]
+        {
+            new InventoryItemSaveData(ItemId.IronOre, 15),
+            new InventoryItemSaveData(ItemId.SteelBlock, 8),
+        };
+
+        var originalWorld = new WorldSaveData(
+            Version: 1,
+            PilotMode: PilotMode.FloatingInSuit,
+            Ship: originalShip,
+            Suit: originalSuit,
+            SuitInventory: inventoryItems);
+
+        string json = WorldSaveSerializer.Serialize(originalWorld);
+        Assert.False(string.IsNullOrWhiteSpace(json));
+
+        var loadResult = WorldSaveSerializer.Deserialize(json);
+        Assert.True(loadResult.IsSuccess, loadResult.ErrorMessage);
+        Assert.NotNull(loadResult.Data);
+
+        var loaded = loadResult.Data!;
+        Assert.Equal(1, loaded.Version);
+        Assert.Equal(PilotMode.FloatingInSuit, loaded.PilotMode);
+
+        // Verify ship kinematics
+        Assert.Equal(originalShip.Position.X, loaded.Ship.Position.X, precision: 3);
+        Assert.Equal(originalShip.Position.Y, loaded.Ship.Position.Y, precision: 3);
+        Assert.Equal(originalShip.Position.Z, loaded.Ship.Position.Z, precision: 3);
+        Assert.Equal(originalShip.DampenersEnabled, loaded.Ship.DampenersEnabled);
+        Assert.True(MathF.Abs(loaded.Ship.Orientation.Length() - 1f) < 1e-4f);
+
+        // Verify suit kinematics and slot
+        Assert.Equal(3, loaded.Suit.ActiveHotbarSlot);
+        Assert.Equal(originalSuit.Kinematics.Position.X, loaded.Suit.Kinematics.Position.X, precision: 3);
+        Assert.Equal(originalSuit.Kinematics.DampenersEnabled, loaded.Suit.Kinematics.DampenersEnabled);
+
+        // Test mapper round-trip to domain state machine & inventory
+        var stateMachine = new PilotModeStateMachine();
+        var inventory = new SuitInventory(50);
+        WorldStateMapper.Apply(loaded, stateMachine, inventory);
+
+        Assert.Equal(PilotMode.FloatingInSuit, stateMachine.Mode);
+        Assert.Equal(15, inventory.GetCount(ItemId.IronOre));
+        Assert.Equal(8, inventory.GetCount(ItemId.SteelBlock));
+        Assert.Equal(23, inventory.TotalCount);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("{ invalid json ")]
+    [InlineData("{\"version\": 1, \"pilotMode\": \"InvalidMode\"}")]
+    public void Deserialize_RejectsMalformedJsonSafely(string malformedJson)
+    {
+        var result = WorldSaveSerializer.Deserialize(malformedJson);
+        Assert.False(result.IsSuccess);
+        Assert.False(string.IsNullOrWhiteSpace(result.ErrorMessage));
+        Assert.Null(result.Data);
+    }
+
+    [Fact]
+    public void Deserialize_RejectsMalformedJsonAndNonFiniteKinematicsSafely()
+    {
+        // NaN in Position
+        string nanJson = """
+        {
+          "version": 1,
+          "pilotMode": "SeatedInCockpit",
+          "ship": {
+            "position": {"x": "NaN", "y": 0, "z": 0},
+            "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+            "linearVelocity": {"x": 0, "y": 0, "z": 0},
+            "angularVelocity": {"x": 0, "y": 0, "z": 0},
+            "dampenersEnabled": true
+          },
+          "suit": {
+            "kinematics": {
+              "position": {"x": 0, "y": 0, "z": 0},
+              "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+              "linearVelocity": {"x": 0, "y": 0, "z": 0},
+              "angularVelocity": {"x": 0, "y": 0, "z": 0},
+              "dampenersEnabled": true
+            },
+            "activeHotbarSlot": 1
+          },
+          "suitInventory": []
+        }
+        """;
+        var nanResult = WorldSaveSerializer.Deserialize(nanJson);
+        Assert.False(nanResult.IsSuccess);
+
+        // Negative inventory count
+        string negInvJson = """
+        {
+          "version": 1,
+          "pilotMode": "SeatedInCockpit",
+          "ship": {
+            "position": {"x": 0, "y": 0, "z": 0},
+            "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+            "linearVelocity": {"x": 0, "y": 0, "z": 0},
+            "angularVelocity": {"x": 0, "y": 0, "z": 0},
+            "dampenersEnabled": true
+          },
+          "suit": {
+            "kinematics": {
+              "position": {"x": 0, "y": 0, "z": 0},
+              "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+              "linearVelocity": {"x": 0, "y": 0, "z": 0},
+              "angularVelocity": {"x": 0, "y": 0, "z": 0},
+              "dampenersEnabled": true
+            },
+            "activeHotbarSlot": 1
+          },
+          "suitInventory": [
+            {"itemId": "IronOre", "quantity": -5}
+          ]
+        }
+        """;
+        var negInvResult = WorldSaveSerializer.Deserialize(negInvJson);
+        Assert.False(negInvResult.IsSuccess);
+
+        // Inventory exceeding max capacity
+        string overInvJson = """
+        {
+          "version": 1,
+          "pilotMode": "SeatedInCockpit",
+          "ship": {
+            "position": {"x": 0, "y": 0, "z": 0},
+            "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+            "linearVelocity": {"x": 0, "y": 0, "z": 0},
+            "angularVelocity": {"x": 0, "y": 0, "z": 0},
+            "dampenersEnabled": true
+          },
+          "suit": {
+            "kinematics": {
+              "position": {"x": 0, "y": 0, "z": 0},
+              "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+              "linearVelocity": {"x": 0, "y": 0, "z": 0},
+              "angularVelocity": {"x": 0, "y": 0, "z": 0},
+              "dampenersEnabled": true
+            },
+            "activeHotbarSlot": 1
+          },
+          "suitInventory": [
+            {"itemId": "IronOre", "quantity": 9999}
+          ]
+        }
+        """;
+        var overInvResult = WorldSaveSerializer.Deserialize(overInvJson);
+        Assert.False(overInvResult.IsSuccess);
+    }
+
+    [Fact]
+    public void FileStore_WritesAtomicallyAndHandlesMissingOrCorruptSaveFiles()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "keel_tests_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            string savePath = Path.Combine(tempDir, "saves", "world.json");
+            string tmpPath = savePath + ".tmp";
+
+            // Test missing file load
+            var missingResult = WorldSaveStore.LoadFromFile(savePath);
+            Assert.False(missingResult.IsSuccess);
+            Assert.Null(missingResult.Data);
+
+            // Test save to new directory
+            var dummyData = new WorldSaveData(
+                Version: 1,
+                PilotMode: PilotMode.SeatedInCockpit,
+                Ship: new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true),
+                Suit: new SuitSaveData(new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true), 1),
+                SuitInventory: Array.Empty<InventoryItemSaveData>());
+
+            var saveResult = WorldSaveStore.SaveToFile(savePath, dummyData);
+            Assert.True(saveResult.IsSuccess, saveResult.ErrorMessage);
+            Assert.True(File.Exists(savePath));
+            Assert.False(File.Exists(tmpPath)); // temp file cleaned up
+
+            // Test load from saved file
+            var loadResult = WorldSaveStore.LoadFromFile(savePath);
+            Assert.True(loadResult.IsSuccess, loadResult.ErrorMessage);
+            Assert.NotNull(loadResult.Data);
+            Assert.Equal(PilotMode.SeatedInCockpit, loadResult.Data!.PilotMode);
+
+            // Test corrupt file load
+            File.WriteAllText(savePath, "{ not valid json at all");
+            var corruptResult = WorldSaveStore.LoadFromFile(savePath);
+            Assert.False(corruptResult.IsSuccess);
+            Assert.Null(corruptResult.Data);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+}

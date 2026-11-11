@@ -42,6 +42,14 @@ public partial class SuitVisorHudNode : CanvasLayer
 
     public int CurrentActiveSlot => _currentSlot;
 
+    public void SetActiveSlot(int slot)
+    {
+        if (slot >= SuitVisorModel.MinSlot && slot <= SuitVisorModel.MaxSlot)
+        {
+            _currentSlot = slot;
+        }
+    }
+
     public override void _Ready()
     {
         Layer = 10;

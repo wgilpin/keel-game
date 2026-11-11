@@ -46,7 +46,10 @@ Updated: 2026-11-11
   - [x] epic-01-world-save-tracer — merged 2026-11-11
   - [x] epic-02-world-grid-resources — merged 2026-11-11
   - [x] epic-03-save-commands-telemetry — merged 2026-11-11
-- [ ] 07-station-power-storage — pending
+- [ ] 07-station-power-storage — in progress
+  - [ ] epic-01-solar-power-loop — pending
+  - [ ] epic-02-cargo-container-blocks — pending
+  - [ ] epic-03-cargo-terminal-ui — pending
 - [ ] 08-dynamic-ship-construction — pending
 - [ ] 09-multi-asteroid-exploration — pending
 

@@ -186,4 +186,40 @@ public sealed class TuningConfigTests
         Assert.False(invalidCap.IsSuccess);
         Assert.Equal(fallback, invalidCap.Config);
     }
+
+    [Fact]
+    public void LoadOrFallback_ValidatesBuildRangeWithSafeFallback()
+    {
+        const string validJson = """
+        {
+          "buildRange": 9.5
+        }
+        """;
+
+        var loaded = TuningConfigLoader.LoadOrFallback(validJson, TuningConfig.Default);
+        Assert.True(loaded.IsSuccess);
+        Assert.Null(loaded.ErrorMessage);
+        Assert.Equal(9.5f, loaded.Config.BuildRange);
+
+        // Non-positive or invalid buildRange values trigger safe fallback
+        const string invalidRangeJson = """
+        {
+          "buildRange": -2.0
+        }
+        """;
+
+        var fallback = loaded.Config;
+        var invalidRange = TuningConfigLoader.LoadOrFallback(invalidRangeJson, fallback);
+        Assert.False(invalidRange.IsSuccess);
+        Assert.Equal(fallback, invalidRange.Config);
+
+        const string zeroRangeJson = """
+        {
+          "buildRange": 0.0
+        }
+        """;
+        var zeroRange = TuningConfigLoader.LoadOrFallback(zeroRangeJson, fallback);
+        Assert.False(zeroRange.IsSuccess);
+        Assert.Equal(fallback, zeroRange.Config);
+    }
 }

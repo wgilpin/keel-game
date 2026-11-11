@@ -19,7 +19,8 @@ public sealed record TuningConfig(
     float RefineryCycleSeconds = 2.0f,
     float RefineryOrePerBlock = 2.0f,
     float RefineryInteractRange = 5.0f,
-    float RefineryBufferCapacity = 100.0f)
+    float RefineryBufferCapacity = 100.0f,
+    float BuildRange = 7.5f)
 {
     public static TuningConfig Default { get; } = new(
         ShipMass: 1200.0f,
@@ -40,5 +41,6 @@ public sealed record TuningConfig(
         RefineryCycleSeconds: 2.0f,
         RefineryOrePerBlock: 2.0f,
         RefineryInteractRange: 5.0f,
-        RefineryBufferCapacity: 100.0f);
+        RefineryBufferCapacity: 100.0f,
+        BuildRange: 7.5f);
 }

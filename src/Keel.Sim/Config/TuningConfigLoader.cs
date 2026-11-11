@@ -50,7 +50,8 @@ public static class TuningConfigLoader
                 RefineryCycleSeconds: parsed.RefineryCycleSeconds ?? fallback.RefineryCycleSeconds,
                 RefineryOrePerBlock: parsed.RefineryOrePerBlock ?? fallback.RefineryOrePerBlock,
                 RefineryInteractRange: parsed.RefineryInteractRange ?? fallback.RefineryInteractRange,
-                RefineryBufferCapacity: parsed.RefineryBufferCapacity ?? fallback.RefineryBufferCapacity);
+                RefineryBufferCapacity: parsed.RefineryBufferCapacity ?? fallback.RefineryBufferCapacity,
+                BuildRange: parsed.BuildRange ?? fallback.BuildRange);
 
             string? validationError = Validate(config);
             if (validationError is not null)
@@ -87,6 +88,7 @@ public static class TuningConfigLoader
         if (!IsPositiveFinite(config.RefineryOrePerBlock) || config.RefineryOrePerBlock < 1.0f) return "refineryOrePerBlock must be >= 1.";
         if (!IsPositiveFinite(config.RefineryInteractRange)) return "refineryInteractRange must be a positive finite number.";
         if (!IsPositiveFinite(config.RefineryBufferCapacity) || config.RefineryBufferCapacity < 1.0f) return "refineryBufferCapacity must be >= 1.";
+        if (!IsPositiveFinite(config.BuildRange)) return "buildRange must be a positive finite number.";
         return null;
     }
 
@@ -113,5 +115,6 @@ public static class TuningConfigLoader
         public float? RefineryOrePerBlock { get; init; }
         public float? RefineryInteractRange { get; init; }
         public float? RefineryBufferCapacity { get; init; }
+        public float? BuildRange { get; init; }
     }
 }

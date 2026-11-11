@@ -13,6 +13,7 @@ using Keel.Sim.Hud;
 using Keel.Sim.Inventory;
 using Keel.Sim.Mining;
 using Keel.Sim.Pilot;
+using Keel.Sim.Persistence;
 using Keel.Sim.Refinery;
 using Keel.Sim.Telemetry;
 using SimQuaternion = System.Numerics.Quaternion;
@@ -37,6 +38,8 @@ public partial class GameRoot : Node3D
     private readonly PilotModeStateMachine _pilotModeMachine = new();
 
     private string _configPath = string.Empty;
+    private string _savePath = string.Empty;
+    private bool _hasSavedOnClose;
     private DateTime _lastObservedWriteUtc;
     private double _pollAccumulator;
     private bool _f3WasPressed;
@@ -65,6 +68,7 @@ public partial class GameRoot : Node3D
 
         _configPath = ResolveConfigPath();
         LoadInitialConfig();
+        _savePath = ResolveSavePath();
 
         _shipRig = new ShipRigNode();
         AddChild(_shipRig);
@@ -90,6 +94,8 @@ public partial class GameRoot : Node3D
 
         _spaceDust = new SpaceDustNode();
         AddChild(_spaceDust);
+
+        LoadWorldStateOnStartup();
 
         Godot.Input.MouseMode = Godot.Input.MouseModeEnum.Captured;
     }
@@ -579,6 +585,108 @@ public partial class GameRoot : Node3D
         {
             return false;
         }
+    }
+
+    public override void _Notification(int what)
+    {
+        if (what == NotificationWMCloseRequest)
+        {
+            if (!_hasSavedOnClose)
+            {
+                _hasSavedOnClose = true;
+                SaveWorldState();
+            }
+        }
+    }
+
+    private void SaveWorldState()
+    {
+        if (_shipRig == null || _suitRig == null)
+        {
+            return;
+        }
+
+        Godot.Quaternion shipRotGodot = _shipRig.GlobalBasis.GetRotationQuaternion();
+        var shipKin = new KinematicsSaveData(
+            ToSim(_shipRig.GlobalPosition),
+            ToSim(shipRotGodot),
+            ToSim(_shipRig.LinearVelocity),
+            ToSim(_shipRig.AngularVelocity),
+            _shipRig.DampenersEnabled);
+
+        Godot.Quaternion suitRotGodot = _suitRig.GlobalBasis.GetRotationQuaternion();
+        var suitKin = new KinematicsSaveData(
+            ToSim(_suitRig.GlobalPosition),
+            ToSim(suitRotGodot),
+            ToSim(_suitRig.LinearVelocity),
+            ToSim(_suitRig.AngularVelocity),
+            _suitRig.DampenersEnabled);
+
+        int activeSlot = _suitVisorHud?.CurrentActiveSlot ?? SuitVisorModel.DefaultSlot;
+
+        WorldSaveData snapshot = WorldStateMapper.CreateSnapshot(
+            _pilotModeMachine.Mode,
+            shipKin,
+            suitKin,
+            activeSlot,
+            _pilotModeMachine.SuitInventory);
+
+        WorldSaveStore.SaveToFile(_savePath, snapshot);
+    }
+
+    private void LoadWorldStateOnStartup()
+    {
+        var loadResult = WorldSaveStore.LoadFromFile(_savePath);
+        if (!loadResult.IsSuccess || loadResult.Data == null)
+        {
+            return;
+        }
+
+        WorldSaveData data = loadResult.Data;
+        WorldStateMapper.Apply(data, _pilotModeMachine, _pilotModeMachine.SuitInventory);
+
+        _shipRig.GlobalPosition = ToGodot(data.Ship.Position);
+        _shipRig.GlobalBasis = new Basis(ToGodot(data.Ship.Orientation));
+        _shipRig.LinearVelocity = ToGodot(data.Ship.LinearVelocity);
+        _shipRig.AngularVelocity = ToGodot(data.Ship.AngularVelocity);
+        _shipRig.DampenersEnabled = data.Ship.DampenersEnabled;
+
+        _suitRig.Spawn(
+            ToGodot(data.Suit.Kinematics.Position),
+            ToGodot(data.Suit.Kinematics.Orientation),
+            ToGodot(data.Suit.Kinematics.LinearVelocity),
+            ToGodot(data.Suit.Kinematics.AngularVelocity));
+        _suitRig.DampenersEnabled = data.Suit.Kinematics.DampenersEnabled;
+        _suitVisorHud.SetActiveSlot(data.Suit.ActiveHotbarSlot);
+
+        if (data.PilotMode == PilotMode.FloatingInSuit)
+        {
+            _shipRig.SetHullVisible(true);
+            _suitRig.SetActive(true);
+            _shipRig.CockpitCamera.Current = false;
+            _suitRig.SuitCamera.Current = true;
+            _cockpitHud.Visible = false;
+            _suitVisorHud.Visible = true;
+        }
+        else
+        {
+            _suitRig.SetActive(false);
+            _shipRig.SetHullVisible(false);
+            _suitRig.SuitCamera.Current = false;
+            _shipRig.CockpitCamera.Current = true;
+            _suitVisorHud.Visible = false;
+            _cockpitHud.Visible = true;
+        }
+    }
+
+    private static string ResolveSavePath()
+    {
+        string projectDir = ProjectSettings.GlobalizePath("res://");
+        string repoCandidate = Path.GetFullPath(Path.Combine(projectDir, "..", "..", "saves", "world.json"));
+        string configCandidate = Path.GetFullPath(Path.Combine(projectDir, "..", "..", "config", "tuning.json"));
+        return File.Exists(configCandidate)
+            ? repoCandidate
+            : Path.Combine(projectDir, "saves", "world.json");
     }
 
     private static string ResolveConfigPath()

@@ -11,3 +11,6 @@ obj/
 *.user
 *.suo
 TestResults/
+
+# Saves
+saves/

@@ -4,6 +4,7 @@ using Godot;
 using Keel.Sim.Arena;
 using Keel.Sim.Grid;
 using Keel.Sim.Refinery;
+using Keel.Sim.Storage;
 using SimVector3 = System.Numerics.Vector3;
 
 namespace Keel.Game.World;
@@ -18,17 +19,20 @@ public partial class StationGridNode : Node3D
     private static readonly Color CoreColor = new(0x47 / 255f, 0x55 / 255f, 0x69 / 255f, 1.0f);
     private static readonly Color SolarPanelColor = new(0x02 / 255f, 0x84 / 255f, 0xC7 / 255f, 1.0f); // Photovoltaic cyan-blue
     private static readonly Color CargoColor = new(0x33 / 255f, 0x41 / 255f, 0x55 / 255f, 1.0f);
+    private static readonly Color CargoTrimColor = new(0x38 / 255f, 0xBD / 255f, 0xF8 / 255f, 1.0f); // #38BDF8 cyan hatch trim
 
     private readonly BlockGrid _grid;
     private StaticBody3D _staticBody = null!;
     private readonly Dictionary<Int3, Node3D> _blockVisuals = new();
     private readonly Dictionary<Int3, CollisionShape3D> _blockColliders = new();
     private readonly RefineryState _refinery = new();
+    private readonly StationCargoStore _cargoStore = new();
     private BlockGhostNode _ghostNode = null!;
 
     public BlockGrid Grid => _grid;
     public StaticBody3D StaticBody => _staticBody;
     public RefineryState Refinery => _refinery;
+    public StationCargoStore CargoStore => _cargoStore;
     public BlockGhostNode GhostNode => _ghostNode;
 
     public StationGridNode(BlockGrid? initialGrid = null)
@@ -166,6 +170,30 @@ public partial class StationGridNode : Node3D
             };
             blockRoot.AddChild(trimInstance);
         }
+        else if (type == BlockType.CargoContainer)
+        {
+            _cargoStore.RegisterContainer(cell, 500);
+
+            var trimMesh = new BoxMesh
+            {
+                Size = new Vector3(1.4f, 1.4f, 0.08f),
+                Material = new StandardMaterial3D
+                {
+                    AlbedoColor = CargoTrimColor,
+                    EmissionEnabled = true,
+                    Emission = CargoTrimColor,
+                    EmissionEnergyMultiplier = 0.8f,
+                    Roughness = 0.3f,
+                    Metallic = 0.6f,
+                },
+            };
+            var trimInstance = new MeshInstance3D
+            {
+                Mesh = trimMesh,
+                Position = new Vector3(0f, 0f, (BlockGrid.CellSize * 0.5f) + 0.02f),
+            };
+            blockRoot.AddChild(trimInstance);
+        }
 
         // 4. Jolt Collision Shape
         var colShape = new CollisionShape3D
@@ -187,6 +215,8 @@ public partial class StationGridNode : Node3D
     public bool RemoveBlockVisualAndCollider(Int3 cell)
     {
         bool removed = false;
+
+        _cargoStore.UnregisterContainer(cell, out _);
 
         if (_blockVisuals.Remove(cell, out var visualNode))
         {

@@ -523,4 +523,156 @@ public class WorldPersistenceTests
         Assert.Equal(0, deposits[1].RemainingUnits);
         Assert.True(deposits[1].IsDepleted);
     }
+
+    [Fact]
+    public void RoundTrip_PreservesSolarAndCargoContainersAndRejectsInvalidOrOrphanedCargo()
+    {
+        // AC-5: Given a world with placed SolarPanel and CargoContainer blocks containing stored
+        // IronOre and SteelBlock stacks, when serialized and deserialized via WorldSaveSerializer
+        // and applied via WorldStateMapper, then all block types and per-cell container inventories
+        // round-trip losslessly (while Phase 06 saves omitting stationCargoContainers still load cleanly),
+        // and payloads with negative quantities, overflowing container totals, duplicate container cells,
+        // or CargoContainerSaveData cells not matching BlockType.CargoContainer fail validation safely.
+
+        var shipKin = new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true);
+        var suitKin = new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true);
+        var pilotMachine = new PilotModeStateMachine();
+        pilotMachine.Reset(PilotMode.FloatingInSuit);
+        var suit = new SuitInventory(50);
+        var grid = StationBlueprint.CreateDefault();
+
+        var solarCell = new Int3(5, 0, 0);
+        var cargoCell = new Int3(-5, 0, 0);
+        grid.TryPlaceBlock(solarCell, BlockType.SolarPanel, out _);
+        grid.TryPlaceBlock(cargoCell, BlockType.CargoContainer, out _);
+
+        var cargoStore = new Keel.Sim.Storage.StationCargoStore(500);
+        var container = cargoStore.RegisterContainer(cargoCell);
+        container.Add(ItemId.IronOre, 120);
+        container.Add(ItemId.SteelBlock, 45);
+
+        // 1. Snapshot and serialize valid world
+        var snapshot = WorldStateMapper.CreateSnapshot(
+            pilotMachine.Mode,
+            shipKin,
+            suitKin,
+            activeSuitSlot: 5,
+            suit,
+            stationGrid: grid,
+            cargoStore: cargoStore);
+
+        string json = WorldSaveSerializer.Serialize(snapshot);
+        var loadResult = WorldSaveSerializer.Deserialize(json);
+        Assert.True(loadResult.IsSuccess, loadResult.ErrorMessage);
+        Assert.NotNull(loadResult.Data);
+
+        var loaded = loadResult.Data!;
+        Assert.NotNull(loaded.StationCargoContainers);
+        Assert.Single(loaded.StationCargoContainers);
+        Assert.Equal(cargoCell, loaded.StationCargoContainers[0].Cell);
+
+        // Apply to clean world state
+        var restoredGrid = new BlockGrid();
+        var restoredStore = new Keel.Sim.Storage.StationCargoStore(500);
+        WorldStateMapper.Apply(
+            loaded,
+            pilotMachine,
+            suit,
+            stationGrid: restoredGrid,
+            cargoStore: restoredStore);
+
+        Assert.Equal(BlockType.SolarPanel, restoredGrid.GetBlock(solarCell));
+        Assert.Equal(BlockType.CargoContainer, restoredGrid.GetBlock(cargoCell));
+        Assert.True(restoredStore.HasContainer(cargoCell));
+        var restoredContainer = restoredStore.GetContainer(cargoCell)!;
+        Assert.Equal(120, restoredContainer.GetCount(ItemId.IronOre));
+        Assert.Equal(45, restoredContainer.GetCount(ItemId.SteelBlock));
+        Assert.Equal(165, restoredContainer.TotalCount);
+
+        // 2. Backwards compatibility: Phase 06 save with no StationCargoContainers
+        var phase06World = new WorldSaveData(
+            Version: 1,
+            PilotMode: PilotMode.FloatingInSuit,
+            Ship: shipKin,
+            Suit: new SuitSaveData(suitKin, 1),
+            SuitInventory: new List<InventoryItemSaveData>(),
+            StationBlocks: snapshot.StationBlocks,
+            StationCargoContainers: null);
+
+        string p6Json = WorldSaveSerializer.Serialize(phase06World);
+        var p6Result = WorldSaveSerializer.Deserialize(p6Json);
+        Assert.True(p6Result.IsSuccess);
+        Assert.Null(p6Result.Data!.StationCargoContainers);
+
+        var p6Store = new Keel.Sim.Storage.StationCargoStore(500);
+        WorldStateMapper.Apply(p6Result.Data, pilotMachine, suit, stationGrid: restoredGrid, cargoStore: p6Store);
+        Assert.True(p6Store.HasContainer(cargoCell));
+        Assert.Equal(0, p6Store.GetContainer(cargoCell)!.TotalCount);
+
+        // 3. Validation rejection: overflowing container (> 500)
+        var overflowPayload = new WorldSaveData(
+            Version: 1,
+            PilotMode: PilotMode.FloatingInSuit,
+            Ship: shipKin,
+            Suit: new SuitSaveData(suitKin, 1),
+            SuitInventory: new List<InventoryItemSaveData>(),
+            StationBlocks: snapshot.StationBlocks,
+            StationCargoContainers: new[]
+            {
+                new CargoContainerSaveData(cargoCell, new[] { new InventoryItemSaveData(ItemId.IronOre, 501) }),
+            });
+        var overflowResult = WorldSaveSerializer.Deserialize(WorldSaveSerializer.Serialize(overflowPayload));
+        Assert.False(overflowResult.IsSuccess);
+        Assert.Contains("exceeds capacity", overflowResult.ErrorMessage);
+
+        // 4. Validation rejection: negative item count in container
+        var negPayload = new WorldSaveData(
+            Version: 1,
+            PilotMode: PilotMode.FloatingInSuit,
+            Ship: shipKin,
+            Suit: new SuitSaveData(suitKin, 1),
+            SuitInventory: new List<InventoryItemSaveData>(),
+            StationBlocks: snapshot.StationBlocks,
+            StationCargoContainers: new[]
+            {
+                new CargoContainerSaveData(cargoCell, new[] { new InventoryItemSaveData(ItemId.IronOre, -5) }),
+            });
+        var negResult = WorldSaveSerializer.Deserialize(WorldSaveSerializer.Serialize(negPayload));
+        Assert.False(negResult.IsSuccess);
+        Assert.Contains("Negative item quantity", negResult.ErrorMessage);
+
+        // 5. Validation rejection: duplicate container cells
+        var dupPayload = new WorldSaveData(
+            Version: 1,
+            PilotMode: PilotMode.FloatingInSuit,
+            Ship: shipKin,
+            Suit: new SuitSaveData(suitKin, 1),
+            SuitInventory: new List<InventoryItemSaveData>(),
+            StationBlocks: snapshot.StationBlocks,
+            StationCargoContainers: new[]
+            {
+                new CargoContainerSaveData(cargoCell, new[] { new InventoryItemSaveData(ItemId.IronOre, 10) }),
+                new CargoContainerSaveData(cargoCell, new[] { new InventoryItemSaveData(ItemId.SteelBlock, 5) }),
+            });
+        var dupResult = WorldSaveSerializer.Deserialize(WorldSaveSerializer.Serialize(dupPayload));
+        Assert.False(dupResult.IsSuccess);
+        Assert.Contains("Duplicate cargo container cell", dupResult.ErrorMessage);
+
+        // 6. Validation rejection: orphaned container cell (cell does not have BlockType.CargoContainer)
+        var orphanCell = new Int3(5, 0, 0); // SolarPanel cell, not CargoContainer
+        var orphanPayload = new WorldSaveData(
+            Version: 1,
+            PilotMode: PilotMode.FloatingInSuit,
+            Ship: shipKin,
+            Suit: new SuitSaveData(suitKin, 1),
+            SuitInventory: new List<InventoryItemSaveData>(),
+            StationBlocks: snapshot.StationBlocks,
+            StationCargoContainers: new[]
+            {
+                new CargoContainerSaveData(orphanCell, new[] { new InventoryItemSaveData(ItemId.IronOre, 10) }),
+            });
+        var orphanResult = WorldSaveSerializer.Deserialize(WorldSaveSerializer.Serialize(orphanPayload));
+        Assert.False(orphanResult.IsSuccess);
+        Assert.Contains("does not correspond to a CargoContainer block", orphanResult.ErrorMessage);
+    }
 }

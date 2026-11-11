@@ -39,7 +39,7 @@ public sealed class DebugTelemetryFormatterTests
             PowerEfficiency: 1.0f,
             Status: Keel.Sim.Power.PowerStatus.Nominal,
             SolarPanelCount: 2,
-            CargoContainerCount: 0);
+            CargoContainerCount: 1);
 
         var snapshot = new DebugTelemetrySnapshot(
             Position: Vector3.Zero,
@@ -48,10 +48,14 @@ public sealed class DebugTelemetryFormatterTests
             DampenersEnabled: true,
             IsReloadFlashActive: false,
             LastConfigError: null,
-            StationPower: power);
+            StationPower: power,
+            TotalCargoUnits: 120,
+            TotalCargoCapacity: 500,
+            CargoContainerCount: 1);
 
         string output = DebugTelemetryFormatter.Format(in snapshot);
 
         Assert.Contains("PWR  125 / 100 kW (NOMINAL)", output);
+        Assert.Contains("STG  120 / 500 (1 BOX)", output);
     }
 }

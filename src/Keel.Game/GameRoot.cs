@@ -380,7 +380,8 @@ public partial class GameRoot : Node3D
                     CurrentTuning,
                     (float)delta,
                     ref _grinderProgress,
-                    ref _lastGrinderTargetCell);
+                    ref _lastGrinderTargetCell,
+                    _stationNode.CargoStore);
 
                 if (_lastGrinderResult.BlockDeconstructed && _lastGrinderResult.DeconstructedCell.HasValue)
                 {
@@ -454,7 +455,10 @@ public partial class GameRoot : Node3D
             PersistenceStatus: _persistenceSession.Status,
             LastPersistenceError: _persistenceSession.LastError,
             IsPersistenceFlashActive: _persistenceSession.IsFlashActive,
-            StationPower: stationPower);
+            StationPower: stationPower,
+            TotalCargoUnits: _stationNode?.CargoStore.TotalItemsStored ?? 0,
+            TotalCargoCapacity: _stationNode?.CargoStore.TotalCapacity ?? 0,
+            CargoContainerCount: _stationNode?.CargoStore.ContainerCount ?? 0);
 
         _debugOverlay.Render(in snapshot);
 
@@ -677,7 +681,8 @@ public partial class GameRoot : Node3D
             _pilotModeMachine.SuitInventory,
             stationGrid: _stationNode?.Grid,
             refinery: _stationNode?.Refinery,
-            oreDeposits: depositStates);
+            oreDeposits: depositStates,
+            cargoStore: _stationNode?.CargoStore);
 
         WorldSaveStore.SaveToFile(_savePath, snapshot);
     }
@@ -753,6 +758,11 @@ public partial class GameRoot : Node3D
             {
                 _stationNode.ReplaceGrid(tempGrid);
             }
+        }
+
+        if (_stationNode != null)
+        {
+            WorldStateMapper.ApplyStationCargo(data, _stationNode.CargoStore);
         }
 
         foreach (var node in depositNodes)

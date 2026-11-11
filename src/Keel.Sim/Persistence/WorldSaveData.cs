@@ -41,6 +41,10 @@ public sealed record OreDepositSaveData(
     int InitialUnits,
     int RemainingUnits);
 
+public sealed record CargoContainerSaveData(
+    Int3 Cell,
+    IReadOnlyList<InventoryItemSaveData> Items);
+
 public sealed record WorldSaveData(
     int Version,
     [property: JsonConverter(typeof(JsonStringEnumConverter))] PilotMode PilotMode,
@@ -49,4 +53,5 @@ public sealed record WorldSaveData(
     IReadOnlyList<InventoryItemSaveData> SuitInventory,
     IReadOnlyList<GridBlockSaveData>? StationBlocks = null,
     RefinerySaveData? Refinery = null,
-    IReadOnlyList<OreDepositSaveData>? OreDeposits = null);
+    IReadOnlyList<OreDepositSaveData>? OreDeposits = null,
+    IReadOnlyList<CargoContainerSaveData>? StationCargoContainers = null);

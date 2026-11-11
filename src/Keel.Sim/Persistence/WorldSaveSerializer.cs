@@ -99,9 +99,10 @@ public static class WorldSaveSerializer
 
         // Validate station blocks
         List<GridBlockSaveData>? validatedBlocks = null;
+        Dictionary<Int3, BlockType>? tempGrid = null;
         if (parsed.StationBlocks != null)
         {
-            var tempGrid = new Dictionary<Int3, BlockType>();
+            tempGrid = new Dictionary<Int3, BlockType>();
             bool hasCoreAtZero = false;
             validatedBlocks = new List<GridBlockSaveData>();
 
@@ -183,6 +184,37 @@ public static class WorldSaveSerializer
             }
         }
 
+        // Validate cargo containers
+        List<CargoContainerSaveData>? validatedContainers = null;
+        if (parsed.StationCargoContainers != null)
+        {
+            validatedContainers = new List<CargoContainerSaveData>();
+            var containerCells = new HashSet<Int3>();
+
+            foreach (var c in parsed.StationCargoContainers)
+            {
+                if (c == null) continue;
+
+                if (!containerCells.Add(c.Cell))
+                {
+                    return new WorldSaveResult(null, false, $"Duplicate cargo container cell: {c.Cell}.");
+                }
+
+                if (tempGrid == null || !tempGrid.TryGetValue(c.Cell, out var blockType) || blockType != BlockType.CargoContainer)
+                {
+                    return new WorldSaveResult(null, false, $"Cargo container at cell {c.Cell} does not correspond to a CargoContainer block on the station grid.");
+                }
+
+                var containerItems = ValidateItemList(c.Items, 500, $"Cargo container at {c.Cell}");
+                if (!containerItems.IsValid)
+                {
+                    return new WorldSaveResult(null, false, containerItems.Error);
+                }
+
+                validatedContainers.Add(new CargoContainerSaveData(c.Cell, containerItems.Items!));
+            }
+        }
+
         var normalizedData = new WorldSaveData(
             Version: parsed.Version,
             PilotMode: parsed.PilotMode,
@@ -191,7 +223,8 @@ public static class WorldSaveSerializer
             SuitInventory: suitInvValidation.Items!,
             StationBlocks: validatedBlocks,
             Refinery: validatedRefinery,
-            OreDeposits: validatedDeposits);
+            OreDeposits: validatedDeposits,
+            StationCargoContainers: validatedContainers);
 
         return new WorldSaveResult(normalizedData, true, null);
     }

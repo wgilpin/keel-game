@@ -5,6 +5,7 @@ using Keel.Sim.Inventory;
 using Keel.Sim.Mining;
 using Keel.Sim.Pilot;
 using Keel.Sim.Refinery;
+using Keel.Sim.Storage;
 
 namespace Keel.Sim.Persistence;
 
@@ -20,7 +21,8 @@ public static class WorldStateMapper
         SuitInventory inventory,
         BlockGrid? stationGrid = null,
         RefineryState? refinery = null,
-        IReadOnlyList<OreDepositState>? oreDeposits = null)
+        IReadOnlyList<OreDepositState>? oreDeposits = null,
+        StationCargoStore? cargoStore = null)
     {
         var items = MapInventory(inventory);
 
@@ -58,6 +60,17 @@ public static class WorldStateMapper
             }
         }
 
+        List<CargoContainerSaveData>? cargoData = null;
+        if (cargoStore != null && cargoStore.ContainerCount > 0)
+        {
+            cargoData = new List<CargoContainerSaveData>();
+            foreach (var kvp in cargoStore.Containers)
+            {
+                var containerItems = MapInventory(kvp.Value);
+                cargoData.Add(new CargoContainerSaveData(kvp.Key, containerItems));
+            }
+        }
+
         return new WorldSaveData(
             Version: CurrentVersion,
             PilotMode: mode,
@@ -66,7 +79,8 @@ public static class WorldStateMapper
             SuitInventory: items,
             StationBlocks: blocks,
             Refinery: refineryData,
-            OreDeposits: deposits);
+            OreDeposits: deposits,
+            StationCargoContainers: cargoData);
     }
 
     private static List<InventoryItemSaveData> MapInventory(SuitInventory inventory)
@@ -90,7 +104,8 @@ public static class WorldStateMapper
         SuitInventory inventory,
         BlockGrid? stationGrid = null,
         RefineryState? refinery = null,
-        IEnumerable<OreDepositState>? oreDeposits = null)
+        IEnumerable<OreDepositState>? oreDeposits = null,
+        StationCargoStore? cargoStore = null)
     {
         pilotMachine.Reset(save.PilotMode);
 
@@ -119,6 +134,46 @@ public static class WorldStateMapper
         if (oreDeposits != null)
         {
             ApplyOreDeposits(save, oreDeposits);
+        }
+
+        if (cargoStore != null)
+        {
+            ApplyStationCargo(save, cargoStore);
+        }
+    }
+
+    public static void ApplyStationCargo(WorldSaveData save, StationCargoStore cargoStore)
+    {
+        cargoStore.Clear();
+
+        if (save.StationBlocks != null)
+        {
+            foreach (var b in save.StationBlocks)
+            {
+                if (b.BlockType == BlockType.CargoContainer)
+                {
+                    cargoStore.RegisterContainer(b.Cell, 500);
+                }
+            }
+        }
+
+        if (save.StationCargoContainers != null)
+        {
+            foreach (var c in save.StationCargoContainers)
+            {
+                var container = cargoStore.RegisterContainer(c.Cell, 500);
+                container.Clear();
+                if (c.Items != null)
+                {
+                    foreach (var item in c.Items)
+                    {
+                        if (item.ItemId != ItemId.None && item.Quantity > 0)
+                        {
+                            container.Add(item.ItemId, item.Quantity);
+                        }
+                    }
+                }
+            }
         }
     }
 

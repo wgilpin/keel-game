@@ -234,6 +234,7 @@ public partial class SuitVisorHudNode : CanvasLayer
             targetedBlockType: targetedBlockType,
             targetedBlockDistance: targetedBlockDistance,
             refineryInteractRange: tuning.RefineryInteractRange,
+            cargoInteractRange: tuning.CargoInteractRange,
             placementStatus: placementStatus,
             drillStatus: drillStatus,
             isAimingAtDeposit: isAimingAtDeposit,

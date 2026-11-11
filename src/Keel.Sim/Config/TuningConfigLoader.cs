@@ -53,7 +53,13 @@ public static class TuningConfigLoader
                 RefineryBufferCapacity: parsed.RefineryBufferCapacity ?? fallback.RefineryBufferCapacity,
                 BuildRange: parsed.BuildRange ?? fallback.BuildRange,
                 GrinderRange: parsed.GrinderRange ?? fallback.GrinderRange,
-                GrinderRate: parsed.GrinderRate ?? fallback.GrinderRate);
+                GrinderRate: parsed.GrinderRate ?? fallback.GrinderRate,
+                CorePowerKw: parsed.CorePowerKw ?? fallback.CorePowerKw,
+                SolarPanelPowerKw: parsed.SolarPanelPowerKw ?? fallback.SolarPanelPowerKw,
+                RefineryPowerDemandKw: parsed.RefineryPowerDemandKw ?? fallback.RefineryPowerDemandKw,
+                CargoContainerPowerDemandKw: parsed.CargoContainerPowerDemandKw ?? fallback.CargoContainerPowerDemandKw,
+                CargoContainerCapacity: parsed.CargoContainerCapacity ?? fallback.CargoContainerCapacity,
+                CargoInteractRange: parsed.CargoInteractRange ?? fallback.CargoInteractRange);
 
             string? validationError = Validate(config);
             if (validationError is not null)
@@ -93,10 +99,17 @@ public static class TuningConfigLoader
         if (!IsPositiveFinite(config.BuildRange)) return "buildRange must be a positive finite number.";
         if (!IsPositiveFinite(config.GrinderRange)) return "grinderRange must be a positive finite number.";
         if (!IsPositiveFinite(config.GrinderRate)) return "grinderRate must be a positive finite number.";
+        if (!IsNonNegativeFinite(config.CorePowerKw)) return "corePowerKw must be a non-negative finite number.";
+        if (!IsPositiveFinite(config.SolarPanelPowerKw)) return "solarPanelPowerKw must be a positive finite number.";
+        if (!IsPositiveFinite(config.RefineryPowerDemandKw)) return "refineryPowerDemandKw must be a positive finite number.";
+        if (!IsNonNegativeFinite(config.CargoContainerPowerDemandKw)) return "cargoContainerPowerDemandKw must be a non-negative finite number.";
+        if (!IsPositiveFinite(config.CargoContainerCapacity) || config.CargoContainerCapacity < 1.0f) return "cargoContainerCapacity must be >= 1.";
+        if (!IsPositiveFinite(config.CargoInteractRange)) return "cargoInteractRange must be a positive finite number.";
         return null;
     }
 
     private static bool IsPositiveFinite(float value) => float.IsFinite(value) && value > 0f;
+    private static bool IsNonNegativeFinite(float value) => float.IsFinite(value) && value >= 0f;
 
     private sealed class TuningConfigDto
     {
@@ -122,5 +135,11 @@ public static class TuningConfigLoader
         public float? BuildRange { get; init; }
         public float? GrinderRange { get; init; }
         public float? GrinderRate { get; init; }
+        public float? CorePowerKw { get; init; }
+        public float? SolarPanelPowerKw { get; init; }
+        public float? RefineryPowerDemandKw { get; init; }
+        public float? CargoContainerPowerDemandKw { get; init; }
+        public float? CargoContainerCapacity { get; init; }
+        public float? CargoInteractRange { get; init; }
     }
 }

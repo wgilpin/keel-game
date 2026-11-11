@@ -259,4 +259,68 @@ public sealed class TuningConfigTests
         Assert.False(zeroRate.IsSuccess);
         Assert.Equal(fallback, zeroRate.Config);
     }
+
+    [Fact]
+    public void LoadOrFallback_ValidatesPhase07PowerAndCargoFieldsWithSafeFallback()
+    {
+        const string validJson = """
+        {
+          "corePowerKw": 30.0,
+          "solarPanelPowerKw": 60.0,
+          "refineryPowerDemandKw": 120.0,
+          "cargoContainerPowerDemandKw": 15.0,
+          "cargoContainerCapacity": 600.0,
+          "cargoInteractRange": 6.0
+        }
+        """;
+
+        var loaded = TuningConfigLoader.LoadOrFallback(validJson, TuningConfig.Default);
+        Assert.True(loaded.IsSuccess);
+        Assert.Null(loaded.ErrorMessage);
+        Assert.Equal(30.0f, loaded.Config.CorePowerKw);
+        Assert.Equal(60.0f, loaded.Config.SolarPanelPowerKw);
+        Assert.Equal(120.0f, loaded.Config.RefineryPowerDemandKw);
+        Assert.Equal(15.0f, loaded.Config.CargoContainerPowerDemandKw);
+        Assert.Equal(600.0f, loaded.Config.CargoContainerCapacity);
+        Assert.Equal(6.0f, loaded.Config.CargoInteractRange);
+
+        // CorePowerKw and CargoContainerPowerDemandKw allow 0.0
+        const string zeroPowerJson = """
+        {
+          "corePowerKw": 0.0,
+          "cargoContainerPowerDemandKw": 0.0
+        }
+        """;
+        var zeroResult = TuningConfigLoader.LoadOrFallback(zeroPowerJson, loaded.Config);
+        Assert.True(zeroResult.IsSuccess);
+        Assert.Equal(0.0f, zeroResult.Config.CorePowerKw);
+        Assert.Equal(0.0f, zeroResult.Config.CargoContainerPowerDemandKw);
+
+        var fallback = loaded.Config;
+
+        // Negative core power fails
+        var negCore = TuningConfigLoader.LoadOrFallback("{\"corePowerKw\": -5.0}", fallback);
+        Assert.False(negCore.IsSuccess);
+        Assert.Equal(fallback, negCore.Config);
+
+        // SolarPanelPowerKw <= 0 fails
+        var zeroSolar = TuningConfigLoader.LoadOrFallback("{\"solarPanelPowerKw\": 0.0}", fallback);
+        Assert.False(zeroSolar.IsSuccess);
+        Assert.Equal(fallback, zeroSolar.Config);
+
+        // RefineryPowerDemandKw <= 0 fails
+        var zeroDemand = TuningConfigLoader.LoadOrFallback("{\"refineryPowerDemandKw\": 0.0}", fallback);
+        Assert.False(zeroDemand.IsSuccess);
+        Assert.Equal(fallback, zeroDemand.Config);
+
+        // CargoContainerCapacity < 1 fails
+        var zeroCap = TuningConfigLoader.LoadOrFallback("{\"cargoContainerCapacity\": 0.0}", fallback);
+        Assert.False(zeroCap.IsSuccess);
+        Assert.Equal(fallback, zeroCap.Config);
+
+        // CargoInteractRange <= 0 fails
+        var zeroRange = TuningConfigLoader.LoadOrFallback("{\"cargoInteractRange\": 0.0}", fallback);
+        Assert.False(zeroRange.IsSuccess);
+        Assert.Equal(fallback, zeroRange.Config);
+    }
 }

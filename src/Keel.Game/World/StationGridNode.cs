@@ -16,6 +16,8 @@ public partial class StationGridNode : Node3D
     private static readonly Color RefineryColor = new(0x47 / 255f, 0x55 / 255f, 0x69 / 255f, 1.0f);
     private static readonly Color RefineryTrimColor = new(0xF5 / 255f, 0x9E / 255f, 0x0B / 255f, 1.0f);
     private static readonly Color CoreColor = new(0x47 / 255f, 0x55 / 255f, 0x69 / 255f, 1.0f);
+    private static readonly Color SolarPanelColor = new(0x02 / 255f, 0x84 / 255f, 0xC7 / 255f, 1.0f); // Photovoltaic cyan-blue
+    private static readonly Color CargoColor = new(0x33 / 255f, 0x41 / 255f, 0x55 / 255f, 1.0f);
 
     private readonly BlockGrid _grid;
     private StaticBody3D _staticBody = null!;
@@ -101,6 +103,18 @@ public partial class StationGridNode : Node3D
                 AlbedoColor = CoreColor,
                 Roughness = 0.6f,
                 Metallic = 0.4f,
+            },
+            BlockType.SolarPanel => new StandardMaterial3D
+            {
+                AlbedoColor = SolarPanelColor,
+                Roughness = 0.2f,
+                Metallic = 0.7f,
+            },
+            BlockType.CargoContainer => new StandardMaterial3D
+            {
+                AlbedoColor = CargoColor,
+                Roughness = 0.5f,
+                Metallic = 0.3f,
             },
             _ => new StandardMaterial3D
             {

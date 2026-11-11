@@ -22,7 +22,13 @@ public sealed record TuningConfig(
     float RefineryBufferCapacity = 100.0f,
     float BuildRange = 7.5f,
     float GrinderRange = 5.0f,
-    float GrinderRate = 1.0f)
+    float GrinderRate = 1.0f,
+    float CorePowerKw = 25.0f,
+    float SolarPanelPowerKw = 50.0f,
+    float RefineryPowerDemandKw = 100.0f,
+    float CargoContainerPowerDemandKw = 10.0f,
+    float CargoContainerCapacity = 500.0f,
+    float CargoInteractRange = 5.0f)
 {
     public static TuningConfig Default { get; } = new(
         ShipMass: 1200.0f,
@@ -46,5 +52,11 @@ public sealed record TuningConfig(
         RefineryBufferCapacity: 100.0f,
         BuildRange: 7.5f,
         GrinderRange: 5.0f,
-        GrinderRate: 1.0f);
+        GrinderRate: 1.0f,
+        CorePowerKw: 25.0f,
+        SolarPanelPowerKw: 50.0f,
+        RefineryPowerDemandKw: 100.0f,
+        CargoContainerPowerDemandKw: 10.0f,
+        CargoContainerCapacity: 500.0f,
+        CargoInteractRange: 5.0f);
 }

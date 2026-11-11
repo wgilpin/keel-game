@@ -60,3 +60,76 @@ Hotbar slot `[4]` becomes `Solar Panel` (displaying how many panels can be built
 - Keep `RefinerySim.Step(RefineryState state, TuningConfig config, float deltaSeconds, float powerEfficiency = 1.0f)` backward-compatible via default `powerEfficiency = 1.0f` so all existing Phase 03–06 unit tests compile and pass unchanged.
 - Define deterministic `SteelBlock` build/refund costs by `BlockType` (`ArmorBlock = 1`, `SolarPanel = 2`, `CargoContainer = 2`) in a shared `Keel.Sim.Grid` helper rather than `tuning.json` so hot-reloading config can never create an item duplication mismatch between placement cost and grinder refund.
 - In `SuitVisorHudNode.UpdateHud`, render stack counts on all buildable block slots (`slot.Index is 2 or 4 or 5`) rather than only `slot.Index == 2`.
+
+---
+
+## Build note — 2026-11-11
+
+**Result:** green
+
+### Tasks done
+
+- Added Phase 07 tuning fields (`CorePowerKw`, `SolarPanelPowerKw`, `RefineryPowerDemandKw`, `CargoContainerPowerDemandKw`, `CargoContainerCapacity`, `CargoInteractRange`) across `TuningConfig`, `TuningConfigLoader`, and `config/tuning.json`.
+- Added `BlockType.SolarPanel` and `BlockType.CargoContainer` to `BlockType.cs` and added `BlockCosts` helper with deterministic `SteelBlock` costs/refunds.
+- Updated `BlockPlacementSim` to support multi-slot placement (slots 2, 4, 5) with multi-block cost gating, and updated `GrinderSim` to enforce multi-block suit cargo capacity before deconstruction and refund full `SteelBlock` costs.
+- Implemented `StationPowerSim` in `Keel.Sim.Power` calculating station bus generation, active demand, and `PowerEfficiency` (`Nominal`, `Brownout`, `Unpowered`).
+- Updated `RefinerySim.Step` to accept `powerEfficiency`, scaling progress under brownout and cleanly pausing with `RefineryStatus.NoPower` at `0 kW` without ore or progress loss.
+- Updated `SuitVisorModel` for slot 4/5 buildable stack counts and placement prompts, updated `RefineryTerminalModel` with power status lines, and updated `DebugTelemetryFormatter` to surface `PWR` generation and demand.
+- Integrated `BlockType.SolarPanel` photovoltaic rendering in `StationGridNode`, continuous power evaluation in `GameRoot`, power-scaled refining, and live Refinery Terminal and `F3` telemetry readouts.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Config/TuningConfigTests.cs`:
+  - `LoadOrFallback_ValidatesPhase07PowerAndCargoFieldsWithSafeFallback`
+- `tests/Keel.Sim.Tests/Grid/BlockPlacementTests.cs`:
+  - `MultiSlotPlacement_PlacesSolarAndCargoBlocksAndEnforcesMultiBlockSteelCost`
+- `tests/Keel.Sim.Tests/Grid/GrinderSimTests.cs`:
+  - `Step_RefundsFullMultiBlockCostAndBlocksWhenRemainingSuitCapacityInsufficient`
+- `tests/Keel.Sim.Tests/Power/StationPowerTests.cs`:
+  - `Evaluate_ComputesGenerationDemandBrownoutAndUnpoweredEfficiency`
+  - `RefineryStep_ScalesProgressWithPowerEfficiencyAndPreservesStateWhenUnpowered`
+- `tests/Keel.Sim.Tests/Telemetry/DebugTelemetryFormatterTests.cs`:
+  - `Format_RendersStationPowerAndStorageReadouts`
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Output: `Passed!  - Failed:     0, Passed:    68, Skipped:     0, Total:    68, Duration: 88 ms - Keel.Sim.Tests.dll (net8.0)`
+
+### Deviations from the plan
+
+- None.
+
+### Follow-ups
+
+- None.
+
+---
+
+## Review — 2026-11-11
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `TuningConfigTests.LoadOrFallback_ValidatesPhase07PowerAndCargoFieldsWithSafeFallback` |
+| AC-2 | yes | `BlockPlacementTests.MultiSlotPlacement_PlacesSolarAndCargoBlocksAndEnforcesMultiBlockSteelCost`, `GrinderSimTests.Step_RefundsFullMultiBlockCostAndBlocksWhenRemainingSuitCapacityInsufficient` |
+| AC-3 | yes | `StationPowerTests.Evaluate_ComputesGenerationDemandBrownoutAndUnpoweredEfficiency` |
+| AC-4 | yes | `StationPowerTests.RefineryStep_ScalesProgressWithPowerEfficiencyAndPreservesStateWhenUnpowered`, `DebugTelemetryFormatterTests.Format_RendersStationPowerAndStorageReadouts` |
+| AC-5 | yes | `StationGridNode`, `RefineryTerminalNode`, `GameRoot` |
+
+### Drift
+
+None.
+
+### Findings
+
+None.
+
+### Follow-ups
+
+None.
+
+

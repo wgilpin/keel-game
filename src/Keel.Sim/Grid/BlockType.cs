@@ -6,4 +6,6 @@ public enum BlockType
     Core = 1,
     ArmorBlock = 2,
     Refinery = 3,
+    SolarPanel = 4,
+    CargoContainer = 5,
 }

@@ -237,6 +237,86 @@ public static class SuitVisorModel
                 promptTone = PromptTone.Primary;
             }
         }
+        else if (activeSlot == 4)
+        {
+            if (steelBlockCount >= 2)
+            {
+                if (placementStatus == PlacementStatus.Valid)
+                {
+                    prompt = "[LMB] Place Solar Panel";
+                    promptTone = PromptTone.Primary;
+                }
+                else if (placementStatus == PlacementStatus.InvalidCell)
+                {
+                    prompt = "INVALID CELL";
+                    promptTone = PromptTone.Danger;
+                }
+                else if (placementStatus == PlacementStatus.OutOfRange)
+                {
+                    prompt = "OUT OF RANGE";
+                    promptTone = PromptTone.Warning;
+                    isTargetOutOfRange = true;
+                }
+                else if (canBoard)
+                {
+                    prompt = "[F] Board Ship";
+                    promptTone = PromptTone.Primary;
+                }
+            }
+            else
+            {
+                if (canBoard)
+                {
+                    prompt = "[F] Board Ship";
+                    promptTone = PromptTone.Primary;
+                }
+                else
+                {
+                    prompt = "NEED 2 STEEL BLOCKS — REFINE ORE AT STATION";
+                    promptTone = PromptTone.Warning;
+                }
+            }
+        }
+        else if (activeSlot == 5)
+        {
+            if (steelBlockCount >= 2)
+            {
+                if (placementStatus == PlacementStatus.Valid)
+                {
+                    prompt = "[LMB] Place Cargo Box";
+                    promptTone = PromptTone.Primary;
+                }
+                else if (placementStatus == PlacementStatus.InvalidCell)
+                {
+                    prompt = "INVALID CELL";
+                    promptTone = PromptTone.Danger;
+                }
+                else if (placementStatus == PlacementStatus.OutOfRange)
+                {
+                    prompt = "OUT OF RANGE";
+                    promptTone = PromptTone.Warning;
+                    isTargetOutOfRange = true;
+                }
+                else if (canBoard)
+                {
+                    prompt = "[F] Board Ship";
+                    promptTone = PromptTone.Primary;
+                }
+            }
+            else
+            {
+                if (canBoard)
+                {
+                    prompt = "[F] Board Ship";
+                    promptTone = PromptTone.Primary;
+                }
+                else
+                {
+                    prompt = "NEED 2 STEEL BLOCKS — REFINE ORE AT STATION";
+                    promptTone = PromptTone.Warning;
+                }
+            }
+        }
         else
         {
             if (canBoard)
@@ -246,14 +326,16 @@ public static class SuitVisorModel
             }
         }
 
-        // 4. Hotbar slot items: [1] Drill, [2] Steel Block, [3] Grinder, [4]–[5] Empty
+        // 4. Hotbar slot items: [1] Drill, [2] Steel Block, [3] Grinder, [4] Solar Panel, [5] Cargo Box
+        int solarCount = steelBlockCount / 2;
+        int cargoCountBlocks = steelBlockCount / 2;
         var slots = new[]
         {
             new HotbarSlot(1, "Drill", 1, activeSlot == 1, IsDimmed: false),
             new HotbarSlot(2, "Steel Block", steelBlockCount, activeSlot == 2, IsDimmed: steelBlockCount == 0),
             new HotbarSlot(3, "Grinder", 1, activeSlot == 3, IsDimmed: false),
-            new HotbarSlot(4, "Empty", 0, activeSlot == 4, IsDimmed: true),
-            new HotbarSlot(5, "Empty", 0, activeSlot == 5, IsDimmed: true),
+            new HotbarSlot(4, "Solar Panel", solarCount, activeSlot == 4, IsDimmed: solarCount == 0),
+            new HotbarSlot(5, "Cargo Box", cargoCountBlocks, activeSlot == 5, IsDimmed: cargoCountBlocks == 0),
         };
 
         return new SuitVisorState(

@@ -134,8 +134,14 @@ public static class GrinderSim
             return new GrinderStepResult(GrinderStatus.OutOfRange, Progress: 0f, BlockDeconstructed: false, DeconstructedCell: null, RefundedItem: null, UnitsRefunded: 0, BeamActive: false);
         }
 
+        int refundCount = BlockCosts.GetSteelBlockCost(targetType);
+        if (refundCount <= 0)
+        {
+            refundCount = 1;
+        }
+
         // 5. CargoFull check
-        if (inventory.IsFull)
+        if (inventory.RemainingCapacity < refundCount)
         {
             return new GrinderStepResult(GrinderStatus.CargoFull, Progress: 0f, BlockDeconstructed: false, DeconstructedCell: null, RefundedItem: null, UnitsRefunded: 0, BeamActive: false);
         }
@@ -157,7 +163,7 @@ public static class GrinderSim
         if (newProgress >= 1.0f)
         {
             grid.RemoveBlock(targetCell.Value, out _);
-            inventory.Add(ItemId.SteelBlock, 1);
+            inventory.Add(ItemId.SteelBlock, refundCount);
 
             return new GrinderStepResult(
                 Status: GrinderStatus.Idle,
@@ -165,7 +171,7 @@ public static class GrinderSim
                 BlockDeconstructed: true,
                 DeconstructedCell: targetCell.Value,
                 RefundedItem: ItemId.SteelBlock,
-                UnitsRefunded: 1,
+                UnitsRefunded: refundCount,
                 BeamActive: false);
         }
 

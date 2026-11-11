@@ -8,6 +8,7 @@ public enum RefineryStatus
     Refining = 1,
     Starved = 2,
     OutputFull = 3,
+    NoPower = 4,
 }
 
 public class RefineryState

@@ -20,5 +20,11 @@
   "refineryBufferCapacity": 100.0,
   "buildRange": 7.5,
   "grinderRange": 5.0,
-  "grinderRate": 1.0
+  "grinderRate": 1.0,
+  "corePowerKw": 25.0,
+  "solarPanelPowerKw": 50.0,
+  "refineryPowerDemandKw": 100.0,
+  "cargoContainerPowerDemandKw": 10.0,
+  "cargoContainerCapacity": 500.0,
+  "cargoInteractRange": 5.0
 }

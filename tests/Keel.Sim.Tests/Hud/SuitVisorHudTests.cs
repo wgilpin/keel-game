@@ -771,4 +771,111 @@ public sealed class SuitVisorHudTests
 
         Assert.Equal("[F] Board Ship", expiredState.PromptText);
     }
+
+    [Fact]
+    public void VisorModel_PrioritizesCargoPromptHotbarCountsAndContainerGrinderWarnings()
+    {
+        // AC-3 & AC-4: VisorModel prioritizes [F] Open Cargo Container within range, OUT OF RANGE,
+        // CONTAINER NOT EMPTY warning on grinder, and hotbar slot [4]/[5] buildable counts.
+
+        const int cargoCapacity = 50;
+        const float cargoRange = 5.0f;
+        const float shipRange = 6.0f;
+
+        // 1. Aiming at CargoContainer within cargoInteractRange (3.0m <= 5.0m) in slot 1
+        SuitVisorState cargoClose = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 1.0f,
+            dampenersEnabled: true,
+            targetedBlockType: Keel.Sim.Grid.BlockType.CargoContainer,
+            targetedBlockDistance: 3.0f,
+            cargoInteractRange: cargoRange);
+
+        Assert.True(cargoClose.CanOpenCargo);
+        Assert.Equal("[F] Open Cargo Container", cargoClose.PromptText);
+        Assert.Equal(PromptTone.Primary, cargoClose.PromptTone);
+        Assert.False(cargoClose.IsTargetOutOfRange);
+
+        // 2. Aiming at CargoContainer out of range (8.0m > 5.0m, within 25.0m)
+        SuitVisorState cargoFar = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 1.0f,
+            dampenersEnabled: true,
+            targetedBlockType: Keel.Sim.Grid.BlockType.CargoContainer,
+            targetedBlockDistance: 8.0f,
+            cargoInteractRange: cargoRange);
+
+        Assert.False(cargoFar.CanOpenCargo);
+        Assert.Equal("OUT OF RANGE", cargoFar.PromptText);
+        Assert.Equal(PromptTone.Warning, cargoFar.PromptTone);
+        Assert.True(cargoFar.IsTargetOutOfRange);
+
+        // 3. Grinder aiming at non-empty container displays CONTAINER NOT EMPTY (Danger)
+        SuitVisorState grinderBlocked = SuitVisorModel.Compute(
+            currentSlot: 3,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            targetedBlockType: Keel.Sim.Grid.BlockType.CargoContainer,
+            targetedBlockDistance: 3.0f,
+            grinderRange: 5.0f,
+            grinderStatus: Keel.Sim.Grid.GrinderStatus.ContainerNotEmpty);
+
+        Assert.Equal("CONTAINER NOT EMPTY", grinderBlocked.PromptText);
+        Assert.Equal(PromptTone.Danger, grinderBlocked.PromptTone);
+
+        // 4. Hotbar slot [4] and [5] buildable counts with 7 SteelBlocks
+        SuitVisorState multiSlots = SuitVisorModel.Compute(
+            currentSlot: 5,
+            slotInput: null,
+            cargoCount: 0,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 7,
+            placementStatus: Keel.Sim.Grid.PlacementStatus.Valid);
+
+        Assert.Equal(5, multiSlots.ActiveSlot);
+        Assert.Equal("Cargo Box", multiSlots.Slots[4].Name);
+        Assert.Equal(3, multiSlots.Slots[4].Count); // 7 / 2 = 3
+        Assert.False(multiSlots.Slots[4].IsDimmed);
+        Assert.True(multiSlots.Slots[4].IsSelected);
+        Assert.Equal("Solar Panel", multiSlots.Slots[3].Name);
+        Assert.Equal(3, multiSlots.Slots[3].Count); // 7 / 2 = 3
+        Assert.Equal("[LMB] Place Cargo Box", multiSlots.PromptText);
+        Assert.Equal(PromptTone.Primary, multiSlots.PromptTone);
+
+        // 5. Zero steel blocks in slot 5 -> dimmed and prompt informs player to refine ore
+        SuitVisorState emptySlot5 = SuitVisorModel.Compute(
+            currentSlot: 5,
+            slotInput: null,
+            cargoCount: 0,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 0);
+
+        Assert.Equal(0, emptySlot5.Slots[4].Count);
+        Assert.True(emptySlot5.Slots[4].IsDimmed);
+        Assert.Equal("NEED 2 STEEL BLOCKS — REFINE ORE AT STATION", emptySlot5.PromptText);
+        Assert.Equal(PromptTone.Warning, emptySlot5.PromptTone);
+    }
 }

@@ -80,6 +80,10 @@ public static class DebugTelemetryFormatter
             ? $"PWR  {snapshot.StationPower.Value.GeneratedKw:F0} / {snapshot.StationPower.Value.DemandKw:F0} kW ({snapshot.StationPower.Value.Status.ToString().ToUpperInvariant()})"
             : "PWR  --";
 
+        string stg = snapshot.CargoContainerCount > 0
+            ? $"STG  {snapshot.TotalCargoUnits} / {snapshot.TotalCargoCapacity} ({snapshot.CargoContainerCount} BOX)"
+            : "STG  --";
+
         return string.Create(inv,
             $"{mode} | {gridText}\n" +
             $"POS  {snapshot.Position.X,8:F1} {snapshot.Position.Y,8:F1} {snapshot.Position.Z,8:F1} m\n" +
@@ -87,6 +91,6 @@ public static class DebugTelemetryFormatter
             $"ANG  {snapshot.AngularVelocity.X,8:F2} {snapshot.AngularVelocity.Y,8:F2} {snapshot.AngularVelocity.Z,8:F2} rad/s\n" +
             $"DMP  {dmp,-8} ORG {originDist,8:F1} m\n" +
             $"CFG  {cfg,-15} {sav}\n" +
-            $"{pwr}");
+            $"{pwr} | {stg}");
     }
 }

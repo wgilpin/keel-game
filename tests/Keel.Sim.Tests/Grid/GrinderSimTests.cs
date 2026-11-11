@@ -340,4 +340,62 @@ public sealed class GrinderSimTests
         Assert.Equal(2, inventory.GetCount(ItemId.SteelBlock));
         Assert.False(grid.HasBlock(targetCell));
     }
+
+    [Fact]
+    public void Step_BlocksNonEmptyCargoContainerAndAllowsDeconstructionOnceEmptied()
+    {
+        // AC-3: Given [3] Grinder targeting a BlockType.CargoContainer cell on the station grid,
+        // when the container's inventory in StationCargoStore has TotalCount > 0, then GrinderSim.Step
+        // returns GrinderStatus.ContainerNotEmpty without advancing progress or removing the block;
+        // once the container is emptied (TotalCount == 0), deconstruction completes, removes the cell
+        // from both BlockGrid and StationCargoStore, and refunds 2 SteelBlock items.
+
+        var grid = StationBlueprint.CreateDefault();
+        var targetCell = new Int3(5, 0, 0);
+        grid.TryPlaceBlock(targetCell, BlockType.CargoContainer, out _);
+        Assert.Equal(BlockType.CargoContainer, grid.GetBlock(targetCell));
+
+        var cargoStore = new Keel.Sim.Storage.StationCargoStore(500);
+        var container = cargoStore.RegisterContainer(targetCell);
+        container.Add(ItemId.IronOre, 25);
+        Assert.Equal(25, container.TotalCount);
+
+        var suit = new SuitInventory(50);
+        float progress = 0f;
+        Int3? lastTarget = null;
+
+        // 1. Non-empty container cannot be deconstructed
+        var nonEmptystep = GrinderSim.Step(
+            grid, suit, targetCell, BlockType.CargoContainer,
+            isFiring: true, activeSlot: 3, hitDistance: 3.0f,
+            grinderRange: 5.0f, grinderRate: 1.0f, deltaSeconds: 1.0f,
+            ref progress, ref lastTarget, cargoStore);
+
+        Assert.Equal(GrinderStatus.ContainerNotEmpty, nonEmptystep.Status);
+        Assert.False(nonEmptystep.BlockDeconstructed);
+        Assert.Equal(0f, progress);
+        Assert.True(grid.HasBlock(targetCell));
+        Assert.True(cargoStore.HasContainer(targetCell));
+        Assert.Equal(0, suit.GetCount(ItemId.SteelBlock));
+
+        // 2. Empty the container
+        container.Clear();
+        Assert.Equal(0, container.TotalCount);
+
+        // 3. Now deconstruction succeeds
+        progress = 0f;
+        lastTarget = null;
+        var emptiedStep = GrinderSim.Step(
+            grid, suit, targetCell, BlockType.CargoContainer,
+            isFiring: true, activeSlot: 3, hitDistance: 3.0f,
+            grinderRange: 5.0f, grinderRate: 1.0f, deltaSeconds: 1.0f,
+            ref progress, ref lastTarget, cargoStore);
+
+        Assert.True(emptiedStep.BlockDeconstructed);
+        Assert.Equal(2, emptiedStep.UnitsRefunded);
+        Assert.Equal(ItemId.SteelBlock, emptiedStep.RefundedItem);
+        Assert.Equal(2, suit.GetCount(ItemId.SteelBlock));
+        Assert.False(grid.HasBlock(targetCell));
+        Assert.False(cargoStore.HasContainer(targetCell));
+    }
 }

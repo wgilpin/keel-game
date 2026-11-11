@@ -34,7 +34,8 @@ public readonly record struct SuitVisorState(
     bool CanOpenRefinery = false,
     string? PromptText = null,
     PromptTone PromptTone = PromptTone.None,
-    bool IsTargetOutOfRange = false);
+    bool IsTargetOutOfRange = false,
+    bool CanOpenCargo = false);
 
 public static class SuitVisorModel
 {
@@ -55,6 +56,7 @@ public static class SuitVisorModel
         BlockType targetedBlockType = BlockType.None,
         float targetedBlockDistance = float.MaxValue,
         float refineryInteractRange = 5.0f,
+        float cargoInteractRange = 5.0f,
         PlacementStatus placementStatus = PlacementStatus.NoTarget,
         Mining.DrillStatus drillStatus = Mining.DrillStatus.Idle,
         bool isAimingAtDeposit = false,
@@ -91,6 +93,7 @@ public static class SuitVisorModel
         // 3. Prompt prioritization
         bool canBoard = suitToShipDistance <= shipInteractRange;
         bool canOpenRefinery = false;
+        bool canOpenCargo = false;
         string? prompt = null;
         PromptTone promptTone = PromptTone.None;
         bool isTargetOutOfRange = false;
@@ -111,6 +114,57 @@ public static class SuitVisorModel
                     prompt = "SAVE LOAD FAILED";
                     promptTone = PromptTone.Danger;
                     break;
+            }
+        }
+        else if (targetedBlockType == BlockType.CargoContainer)
+        {
+            if (targetedBlockDistance <= cargoInteractRange)
+            {
+                canOpenCargo = true;
+            }
+
+            if (activeSlot == 3)
+            {
+                if (grinderStatus == GrinderStatus.ContainerNotEmpty)
+                {
+                    prompt = "CONTAINER NOT EMPTY";
+                    promptTone = PromptTone.Danger;
+                }
+                else if (targetedBlockDistance > grinderRange || grinderStatus == GrinderStatus.OutOfRange)
+                {
+                    prompt = "OUT OF RANGE";
+                    promptTone = PromptTone.Warning;
+                    isTargetOutOfRange = true;
+                }
+                else if (isCargoFull || grinderStatus == GrinderStatus.CargoFull)
+                {
+                    prompt = "CARGO FULL";
+                    promptTone = PromptTone.Danger;
+                }
+                else if (grinderStatus == GrinderStatus.WouldSplitGrid)
+                {
+                    prompt = "CANNOT SPLIT GRID";
+                    promptTone = PromptTone.Danger;
+                }
+                else
+                {
+                    prompt = "[LMB] Deconstruct Block";
+                    promptTone = PromptTone.Primary;
+                }
+            }
+            else
+            {
+                if (targetedBlockDistance <= cargoInteractRange)
+                {
+                    prompt = "[F] Open Cargo Container";
+                    promptTone = PromptTone.Primary;
+                }
+                else if (targetedBlockDistance <= 25.0f)
+                {
+                    prompt = "OUT OF RANGE";
+                    promptTone = PromptTone.Warning;
+                    isTargetOutOfRange = true;
+                }
             }
         }
         else if (targetedBlockType == BlockType.Refinery)
@@ -204,7 +258,12 @@ public static class SuitVisorModel
         {
             if (targetedBlockType != BlockType.None)
             {
-                if (targetedBlockDistance > grinderRange || grinderStatus == GrinderStatus.OutOfRange)
+                if (grinderStatus == GrinderStatus.ContainerNotEmpty)
+                {
+                    prompt = "CONTAINER NOT EMPTY";
+                    promptTone = PromptTone.Danger;
+                }
+                else if (targetedBlockDistance > grinderRange || grinderStatus == GrinderStatus.OutOfRange)
                 {
                     prompt = "OUT OF RANGE";
                     promptTone = PromptTone.Warning;
@@ -352,6 +411,7 @@ public static class SuitVisorModel
             CanOpenRefinery: canOpenRefinery,
             PromptText: prompt,
             PromptTone: promptTone,
-            IsTargetOutOfRange: isTargetOutOfRange);
+            IsTargetOutOfRange: isTargetOutOfRange,
+            CanOpenCargo: canOpenCargo);
     }
 }

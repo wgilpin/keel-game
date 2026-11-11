@@ -54,3 +54,43 @@ Hotbar slot `[5]` becomes `Cargo Box` (cost `2` `SteelBlock`). Placing a `CargoC
 - Host `StationCargoStore` on `StationGridNode` alongside `BlockGrid` and `RefineryState` so `StationGridNode.ReplaceGrid` and block placement/removal hooks keep `StationCargoStore` synchronized with `BlockType.CargoContainer` cells.
 - Style `BlockType.CargoContainer` in `StationGridNode.AddBlockVisualAndCollider` using slate `#475569` / `#334155` framing with recessed `#38BDF8` cyan hatch trim on exposed faces so Cargo Containers are visually distinct from `#F59E0B` amber-trimmed Refinery blocks from any approach vector.
 - Add `STG  <used> / <capacity> (<count> BOX)` to `DebugTelemetryFormatter` alongside `PWR` so container state is observable in `F3` telemetry even before `CargoTerminalNode` lands in `epic-03`.
+
+## Build note
+
+- **Tasks done**:
+  - Implemented `StationCargoStore` managing isolated per-cell `500`-unit `SuitInventory` stores synchronized with `BlockGrid` placement/removal lifecycles and tracking total items and total capacity across the station.
+  - Implemented `CargoTransferSim` providing clamped, bounded deposit and withdrawal for single item types and bulk transfers (`DepositAll` / `WithdrawAll`) strictly conserving items across inventories.
+  - Guarded `GrinderSim.Step` against deconstructing non-empty `CargoContainer` blocks (`GrinderStatus.ContainerNotEmpty`) and enabled atomic grid removal, store unregistration, and 2-block refund when emptied.
+  - Extended `SuitVisorModel` with `CanOpenCargo` and prioritized `[F] Open Cargo Container` (`PromptTone.Primary`) within `cargoInteractRange` (`5.0 m`), `OUT OF RANGE` up to `25.0 m`, and `CONTAINER NOT EMPTY` (`PromptTone.Danger`) on the grinder HUD.
+  - Implemented lossless world persistence for `StationCargoContainers` in `WorldSaveData`, `WorldSaveSerializer`, and `WorldStateMapper`, including validation rejection of overflowing, negative, duplicate, or orphaned container records while preserving backward compatibility for Phase 06 saves.
+  - Integrated `StationCargoStore` into `StationGridNode`, added `#38BDF8` cyan hatch trim visuals, and surfaced `STG  <used> / <capacity> (<count> BOX)` in `DebugTelemetryFormatter`.
+- **Tests added**:
+  - `StationCargoTests.CargoStore_IsolatesPerCellContainersAndContributesStandbyPowerDemand`
+  - `StationCargoTests.Transfers_DepositAndWithdrawIronOreSteelBlocksAndAllItemsWithinBounds`
+  - `GrinderSimTests.Step_BlocksNonEmptyCargoContainerAndAllowsDeconstructionOnceEmptied`
+  - `SuitVisorHudTests.VisorModel_PrioritizesCargoPromptHotbarCountsAndContainerGrinderWarnings`
+  - `WorldPersistenceTests.RoundTrip_PreservesSolarAndCargoContainersAndRejectsInvalidOrOrphanedCargo`
+  - Updated `DebugTelemetryFormatterTests.Format_RendersStationPowerAndStorageReadouts`
+- **Suite result**: 73 tests passing via `dotnet test Keel.sln` (duration ~160ms).
+- **Deviation from plan**: None.
+
+## Review
+
+### Pass 1: Acceptance criteria conformance
+- **AC-1**: Verified. `StationCargoStore` maintains isolated per-cell `500`-unit `SuitInventory` instances; `StationPowerSim.Evaluate` includes `cargoCount * cargoContainerPowerDemandKw` in demand regardless of refinery state. Tested by `StationCargoTests.CargoStore_IsolatesPerCellContainersAndContributesStandbyPowerDemand`.
+- **AC-2**: Verified. `CargoTransferSim` clamps transfers to source quantity and destination capacity, leaves non-targeted items intact, and conserves total item counts. Tested by `StationCargoTests.Transfers_DepositAndWithdrawIronOreSteelBlocksAndAllItemsWithinBounds`.
+- **AC-3**: Verified. `GrinderSim.Step` returns `GrinderStatus.ContainerNotEmpty` when targeting a non-empty container, refusing deconstruction; once emptied, grinding succeeds, removes cell from grid and store, and refunds 2 `SteelBlock`s. Tested by `GrinderSimTests.Step_BlocksNonEmptyCargoContainerAndAllowsDeconstructionOnceEmptied`.
+- **AC-4**: Verified. `SuitVisorModel.Compute` prioritizes `[F] Open Cargo Container` (`PromptTone.Primary`) and sets `CanOpenCargo = true` within `5.0 m`, surfaces `OUT OF RANGE` up to `25.0 m`, and displays `CONTAINER NOT EMPTY` (`PromptTone.Danger`) on grinder. Tested by `SuitVisorHudTests.VisorModel_PrioritizesCargoPromptHotbarCountsAndContainerGrinderWarnings`.
+- **AC-5**: Verified. `WorldSaveSerializer` and `WorldStateMapper` round-trip `StationCargoContainers` losslessly while safely loading legacy saves and rejecting negative counts, overflowing capacity, duplicate cells, or orphaned entries. Tested by `WorldPersistenceTests.RoundTrip_PreservesSolarAndCargoContainersAndRejectsInvalidOrOrphanedCargo`.
+
+### Pass 2: Architecture & drift check
+- `StationCargoStore` and `CargoTransferSim` live cleanly in `Keel.Sim.Storage` without Godot dependencies.
+- `StationGridNode` synchronizes visuals, physics colliders, and storage lifecycle, applying design token `#38BDF8` cyan hatch trim.
+- `DebugTelemetryFormatter` surfaces `STG  <used> / <capacity> (<count> BOX)` alongside `PWR`.
+
+### Pass 3: Correctness, security & test suite
+- All inputs are bounds-checked and validated against overflow, negative values, and orphan references.
+- Test suite: 73 tests pass in 164ms via `dotnet test Keel.sln`.
+
+**Verdict**: pass
+

@@ -1,6 +1,7 @@
 using System;
 using Keel.Sim.Config;
 using Keel.Sim.Inventory;
+using Keel.Sim.Storage;
 
 namespace Keel.Sim.Grid;
 
@@ -13,6 +14,7 @@ public enum GrinderStatus
     CargoFull,
     WouldSplitGrid,
     NoTarget,
+    ContainerNotEmpty,
 }
 
 public readonly record struct GrinderStepResult(
@@ -40,7 +42,8 @@ public static class GrinderSim
         float grinderRate,
         float deltaSeconds,
         ref float progress,
-        ref Int3? lastTargetCell)
+        ref Int3? lastTargetCell,
+        StationCargoStore? cargoStore = null)
     {
         var result = Step(
             grid,
@@ -54,7 +57,8 @@ public static class GrinderSim
             grinderRate,
             deltaSeconds,
             progress,
-            lastTargetCell);
+            lastTargetCell,
+            cargoStore);
 
         progress = result.Progress;
         lastTargetCell = targetCell;
@@ -72,7 +76,8 @@ public static class GrinderSim
         TuningConfig tuning,
         float deltaSeconds,
         ref float progress,
-        ref Int3? lastTargetCell)
+        ref Int3? lastTargetCell,
+        StationCargoStore? cargoStore = null)
     {
         return Step(
             grid,
@@ -86,7 +91,8 @@ public static class GrinderSim
             tuning.GrinderRate,
             deltaSeconds,
             ref progress,
-            ref lastTargetCell);
+            ref lastTargetCell,
+            cargoStore);
     }
 
     public static GrinderStepResult Step(
@@ -101,7 +107,8 @@ public static class GrinderSim
         float grinderRate,
         float deltaSeconds,
         float currentProgress = 0f,
-        Int3? lastTargetCell = null)
+        Int3? lastTargetCell = null,
+        StationCargoStore? cargoStore = null)
     {
         // 1. Slot check: only [3] Grinder can deconstruct blocks
         if (activeSlot != GrinderSlotIndex)
@@ -126,6 +133,15 @@ public static class GrinderSim
         if (targetType == BlockType.Core)
         {
             return new GrinderStepResult(GrinderStatus.CannotDeconstructCore, Progress: 0f, BlockDeconstructed: false, DeconstructedCell: null, RefundedItem: null, UnitsRefunded: 0, BeamActive: false);
+        }
+
+        // Non-empty cargo container protection
+        if (targetType == BlockType.CargoContainer &&
+            cargoStore != null &&
+            cargoStore.TryGetContainer(targetCell.Value, out var container) &&
+            container.TotalCount > 0)
+        {
+            return new GrinderStepResult(GrinderStatus.ContainerNotEmpty, Progress: 0f, BlockDeconstructed: false, DeconstructedCell: null, RefundedItem: null, UnitsRefunded: 0, BeamActive: false);
         }
 
         // 4. Range check
@@ -163,6 +179,10 @@ public static class GrinderSim
         if (newProgress >= 1.0f)
         {
             grid.RemoveBlock(targetCell.Value, out _);
+            if (targetType == BlockType.CargoContainer && cargoStore != null)
+            {
+                cargoStore.UnregisterContainer(targetCell.Value, out _);
+            }
             inventory.Add(ItemId.SteelBlock, refundCount);
 
             return new GrinderStepResult(

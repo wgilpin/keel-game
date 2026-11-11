@@ -527,4 +527,78 @@ public sealed class BlockPlacementTests
         Assert.Equal(initialGridCount + 2, station.Count);
         Assert.True(station.IsConnected());
     }
+
+    [Fact]
+    public void MultiSlotPlacement_PlacesSolarAndCargoBlocksAndEnforcesMultiBlockSteelCost()
+    {
+        var grid = new BlockGrid();
+        grid.TryPlaceBlock(new Int3(0, 0, 0), BlockType.Core, out _);
+        var inventory = new SuitInventory(50);
+        const float range = 7.5f;
+
+        // --- Slot 4: Solar Panel (Cost = 2) ---
+        // 1. With only 1 SteelBlock, slot 4 evaluation returns NoBlocks
+        inventory.Add(ItemId.SteelBlock, 1);
+        var evalSolarNoStock = BlockPlacementSim.Evaluate(
+            grid: grid,
+            isFloatingInSuit: true,
+            activeSlot: 4,
+            steelBlockCount: inventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(1.25f, 0f, 0f),
+            localHitNormal: Vector3.UnitX,
+            hitDistance: 3.0f,
+            buildRange: range,
+            isModalOpen: false);
+
+        Assert.Equal(PlacementStatus.NoBlocks, evalSolarNoStock.Status);
+        Assert.False(evalSolarNoStock.ShowGhost);
+
+        // 2. Add 1 more SteelBlock -> 2 total. Now Valid and shows ghost
+        inventory.Add(ItemId.SteelBlock, 1);
+        var evalSolarValid = BlockPlacementSim.Evaluate(
+            grid: grid,
+            isFloatingInSuit: true,
+            activeSlot: 4,
+            steelBlockCount: inventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(1.25f, 0f, 0f),
+            localHitNormal: Vector3.UnitX,
+            hitDistance: 3.0f,
+            buildRange: range,
+            isModalOpen: false);
+
+        Assert.Equal(PlacementStatus.Valid, evalSolarValid.Status);
+        Assert.True(evalSolarValid.ShowGhost);
+        Assert.Equal(BlockType.SolarPanel, evalSolarValid.CandidateBlockType);
+
+        bool placedSolar = BlockPlacementSim.TryPlace(grid, inventory, in evalSolarValid, out string? reasonSolar);
+        Assert.True(placedSolar, reasonSolar);
+        Assert.Equal(0, inventory.GetCount(ItemId.SteelBlock));
+        Assert.Equal(BlockType.SolarPanel, grid.GetBlock(new Int3(1, 0, 0)));
+
+        // --- Slot 5: Cargo Container (Cost = 2) ---
+        // 3. Add 2 SteelBlocks and place CargoContainer at (0, 1, 0)
+        inventory.Add(ItemId.SteelBlock, 2);
+        var evalCargoValid = BlockPlacementSim.Evaluate(
+            grid: grid,
+            isFloatingInSuit: true,
+            activeSlot: 5,
+            steelBlockCount: inventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(0f, 1.25f, 0f),
+            localHitNormal: Vector3.UnitY,
+            hitDistance: 3.0f,
+            buildRange: range,
+            isModalOpen: false);
+
+        Assert.Equal(PlacementStatus.Valid, evalCargoValid.Status);
+        Assert.Equal(BlockType.CargoContainer, evalCargoValid.CandidateBlockType);
+
+        bool placedCargo = BlockPlacementSim.TryPlace(grid, inventory, in evalCargoValid, out string? reasonCargo);
+        Assert.True(placedCargo, reasonCargo);
+        Assert.Equal(0, inventory.GetCount(ItemId.SteelBlock));
+        Assert.Equal(BlockType.CargoContainer, grid.GetBlock(new Int3(0, 1, 0)));
+        Assert.True(grid.IsConnected());
+    }
 }

@@ -21,7 +21,8 @@ public readonly record struct PlacementEvaluation(
     Int3? CandidateCell = null,
     Int3 FaceOffset = default,
     BlockType StruckBlockType = BlockType.None,
-    float HitDistance = float.MaxValue)
+    float HitDistance = float.MaxValue,
+    BlockType CandidateBlockType = BlockType.None)
 {
     public bool IsValid => Status == PlacementStatus.Valid;
     public bool ShowGhost => Status is PlacementStatus.Valid or PlacementStatus.InvalidCell;
@@ -44,24 +45,26 @@ public static class BlockPlacementSim
         bool isModalOpen = false,
         IReadOnlyList<(Vector3 Min, Vector3 Max)>? dynamicObstacles = null)
     {
-        if (!isFloatingInSuit || isModalOpen || activeSlot != BuildSlotIndex)
+        BlockType candidateType = BlockCosts.GetBlockTypeForSlot(activeSlot);
+        if (!isFloatingInSuit || isModalOpen || candidateType == BlockType.None)
         {
             return new PlacementEvaluation(PlacementStatus.Inactive);
         }
 
-        if (steelBlockCount <= 0)
+        int cost = BlockCosts.GetSteelBlockCost(candidateType);
+        if (steelBlockCount < cost)
         {
-            return new PlacementEvaluation(PlacementStatus.NoBlocks);
+            return new PlacementEvaluation(PlacementStatus.NoBlocks, CandidateBlockType: candidateType);
         }
 
         if (!hasStationHit || localHitNormal.LengthSquared() < 0.0001f)
         {
-            return new PlacementEvaluation(PlacementStatus.NoTarget);
+            return new PlacementEvaluation(PlacementStatus.NoTarget, CandidateBlockType: candidateType);
         }
 
         if (!grid.ResolveHitCell(localHitPosition, localHitNormal, out Int3 struckCell, out BlockType struckType) || struckType == BlockType.None)
         {
-            return new PlacementEvaluation(PlacementStatus.NoTarget);
+            return new PlacementEvaluation(PlacementStatus.NoTarget, CandidateBlockType: candidateType);
         }
 
         if (hitDistance > buildRange)
@@ -72,7 +75,8 @@ public static class BlockPlacementSim
                 CandidateCell: null,
                 FaceOffset: default,
                 StruckBlockType: struckType,
-                HitDistance: hitDistance);
+                HitDistance: hitDistance,
+                CandidateBlockType: candidateType);
         }
 
         // Quantize face normal to largest cardinal axis
@@ -98,7 +102,8 @@ public static class BlockPlacementSim
                 CandidateCell: candidateCell,
                 FaceOffset: faceOffset,
                 StruckBlockType: struckType,
-                HitDistance: hitDistance);
+                HitDistance: hitDistance,
+                CandidateBlockType: candidateType);
         }
 
         // 2. Must not seal the +Z front face of any Refinery block (port protection)
@@ -111,7 +116,8 @@ public static class BlockPlacementSim
                 CandidateCell: candidateCell,
                 FaceOffset: faceOffset,
                 StruckBlockType: struckType,
-                HitDistance: hitDistance);
+                HitDistance: hitDistance,
+                CandidateBlockType: candidateType);
         }
 
         // 3. Must not overlap dynamic obstacles (suit collider, ship hull)
@@ -132,7 +138,8 @@ public static class BlockPlacementSim
                         CandidateCell: candidateCell,
                         FaceOffset: faceOffset,
                         StruckBlockType: struckType,
-                        HitDistance: hitDistance);
+                        HitDistance: hitDistance,
+                        CandidateBlockType: candidateType);
                 }
             }
         }
@@ -143,7 +150,8 @@ public static class BlockPlacementSim
             CandidateCell: candidateCell,
             FaceOffset: faceOffset,
             StruckBlockType: struckType,
-            HitDistance: hitDistance);
+            HitDistance: hitDistance,
+            CandidateBlockType: candidateType);
     }
 
     public static bool TryPlace(
@@ -158,19 +166,22 @@ public static class BlockPlacementSim
             return false;
         }
 
-        if (inventory.GetCount(ItemId.SteelBlock) <= 0)
+        BlockType toPlace = eval.CandidateBlockType != BlockType.None ? eval.CandidateBlockType : BlockType.ArmorBlock;
+        int cost = BlockCosts.GetSteelBlockCost(toPlace);
+
+        if (inventory.GetCount(ItemId.SteelBlock) < cost)
         {
-            reason = "No steel blocks in suit inventory.";
+            reason = "Insufficient steel blocks in suit inventory.";
             return false;
         }
 
-        if (!grid.TryPlaceBlock(eval.CandidateCell.Value, BlockType.ArmorBlock, out reason))
+        if (!grid.TryPlaceBlock(eval.CandidateCell.Value, toPlace, out reason))
         {
             return false;
         }
 
-        int removed = inventory.Remove(ItemId.SteelBlock, 1);
-        if (removed != 1)
+        int removed = inventory.Remove(ItemId.SteelBlock, cost);
+        if (removed != cost)
         {
             grid.RemoveBlock(eval.CandidateCell.Value, out _);
             reason = "Failed removing steel block from inventory.";

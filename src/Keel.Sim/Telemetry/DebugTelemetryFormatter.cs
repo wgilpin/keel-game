@@ -20,7 +20,11 @@ public readonly record struct DebugTelemetrySnapshot(
     float? GrinderProgress = null,
     Persistence.PersistenceStatus PersistenceStatus = Persistence.PersistenceStatus.None,
     string? LastPersistenceError = null,
-    bool IsPersistenceFlashActive = false);
+    bool IsPersistenceFlashActive = false,
+    Power.StationPowerSnapshot? StationPower = null,
+    int TotalCargoUnits = 0,
+    int TotalCargoCapacity = 0,
+    int CargoContainerCount = 0);
 
 public static class DebugTelemetryFormatter
 {
@@ -72,12 +76,17 @@ public static class DebugTelemetryFormatter
             gridText += $" -> DECONSTRUCT ({percent}%)";
         }
 
+        string pwr = snapshot.StationPower.HasValue
+            ? $"PWR  {snapshot.StationPower.Value.GeneratedKw:F0} / {snapshot.StationPower.Value.DemandKw:F0} kW ({snapshot.StationPower.Value.Status.ToString().ToUpperInvariant()})"
+            : "PWR  --";
+
         return string.Create(inv,
             $"{mode} | {gridText}\n" +
             $"POS  {snapshot.Position.X,8:F1} {snapshot.Position.Y,8:F1} {snapshot.Position.Z,8:F1} m\n" +
             $"VEL  {snapshot.LinearVelocity.X,8:F1} {snapshot.LinearVelocity.Y,8:F1} {snapshot.LinearVelocity.Z,8:F1} m/s ({speed:F1})\n" +
             $"ANG  {snapshot.AngularVelocity.X,8:F2} {snapshot.AngularVelocity.Y,8:F2} {snapshot.AngularVelocity.Z,8:F2} rad/s\n" +
             $"DMP  {dmp,-8} ORG {originDist,8:F1} m\n" +
-            $"CFG  {cfg,-15} {sav}");
+            $"CFG  {cfg,-15} {sav}\n" +
+            $"{pwr}");
     }
 }

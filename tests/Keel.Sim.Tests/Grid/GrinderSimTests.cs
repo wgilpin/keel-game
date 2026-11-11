@@ -293,4 +293,51 @@ public sealed class GrinderSimTests
         // Grid remains 6-connected
         Assert.True(grid.IsConnected());
     }
+
+    [Fact]
+    public void Step_RefundsFullMultiBlockCostAndBlocksWhenRemainingSuitCapacityInsufficient()
+    {
+        var grid = StationBlueprint.CreateDefault();
+        var targetCell = new Int3(1, 0, 3);
+        grid.TryPlaceBlock(targetCell, BlockType.SolarPanel, out _);
+        Assert.Equal(BlockType.SolarPanel, grid.GetBlock(targetCell));
+
+        // 1. Suit has capacity 50, but holds 49 items -> 1 slot remaining
+        // SolarPanel refund is 2, so RemainingCapacity (1) < 2 -> CargoFull
+        var inventory = new SuitInventory(50);
+        inventory.Add(ItemId.IronOre, 49);
+        Assert.Equal(1, inventory.RemainingCapacity);
+
+        float progress = 0f;
+        Int3? lastTarget = null;
+
+        var fullStep = GrinderSim.Step(
+            grid, inventory, targetCell, BlockType.SolarPanel,
+            isFiring: true, activeSlot: 3, hitDistance: 3.0f,
+            grinderRange: 5.0f, grinderRate: 1.0f, deltaSeconds: 1.0f,
+            ref progress, ref lastTarget);
+
+        Assert.Equal(GrinderStatus.CargoFull, fullStep.Status);
+        Assert.False(fullStep.BlockDeconstructed);
+        Assert.True(grid.HasBlock(targetCell));
+        Assert.Equal(0, inventory.GetCount(ItemId.SteelBlock));
+
+        // 2. Remove 1 item so remaining capacity is 2 -> now deconstruction succeeds and refunds 2 SteelBlocks
+        inventory.Remove(ItemId.IronOre, 1);
+        Assert.Equal(2, inventory.RemainingCapacity);
+
+        progress = 0f;
+        lastTarget = null;
+        var completeStep = GrinderSim.Step(
+            grid, inventory, targetCell, BlockType.SolarPanel,
+            isFiring: true, activeSlot: 3, hitDistance: 3.0f,
+            grinderRange: 5.0f, grinderRate: 1.0f, deltaSeconds: 1.0f,
+            ref progress, ref lastTarget);
+
+        Assert.True(completeStep.BlockDeconstructed);
+        Assert.Equal(2, completeStep.UnitsRefunded);
+        Assert.Equal(ItemId.SteelBlock, completeStep.RefundedItem);
+        Assert.Equal(2, inventory.GetCount(ItemId.SteelBlock));
+        Assert.False(grid.HasBlock(targetCell));
+    }
 }

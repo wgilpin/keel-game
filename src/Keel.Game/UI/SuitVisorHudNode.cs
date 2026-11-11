@@ -304,7 +304,7 @@ public partial class SuitVisorHudNode : CanvasLayer
             _slotLabels[i].Text = slot.Name == "Empty" ? "" : slot.Name;
             _slotLabels[i].AddThemeColorOverride("font_color", slot.IsDimmed ? VisorMuted : (isSelected ? VisorPrimary : VisorText));
 
-            if (slot.Index == 2)
+            if (slot.Index is 2 or 4 or 5)
             {
                 _slotCountLabels[i].Text = slot.Count.ToString();
                 _slotCountLabels[i].AddThemeColorOverride("font_color", slot.IsDimmed ? VisorMuted : VisorText);

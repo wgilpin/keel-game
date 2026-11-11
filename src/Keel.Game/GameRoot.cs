@@ -240,7 +240,8 @@ public partial class GameRoot : Node3D
         // Step station refinery continuously in physics process
         if (_stationNode != null)
         {
-            RefinerySim.Step(_stationNode.Refinery, CurrentTuning, (float)delta);
+            var powerSnapshot = Keel.Sim.Power.StationPowerSim.Evaluate(_stationNode.Grid, _stationNode.Refinery, CurrentTuning);
+            RefinerySim.Step(_stationNode.Refinery, CurrentTuning, (float)delta, powerSnapshot.PowerEfficiency);
         }
 
         // Apply physics flight step
@@ -336,11 +337,11 @@ public partial class GameRoot : Node3D
                     _stationNode.GhostNode.HideGhost();
                 }
 
-                if (primaryClicked && activeSlot == BlockPlacementSim.BuildSlotIndex && !_isRefineryOpen)
+                if (primaryClicked && (activeSlot is BlockPlacementSim.BuildSlotIndex or 4 or 5) && !_isRefineryOpen)
                 {
                     if (BlockPlacementSim.TryPlace(_stationNode.Grid, _pilotModeMachine.SuitInventory, in _lastPlacementEval, out _))
                     {
-                        _stationNode.AddBlockVisualAndCollider(_lastPlacementEval.CandidateCell!.Value, BlockType.ArmorBlock);
+                        _stationNode.AddBlockVisualAndCollider(_lastPlacementEval.CandidateCell!.Value, _lastPlacementEval.CandidateBlockType);
                     }
                 }
             }
@@ -433,6 +434,10 @@ public partial class GameRoot : Node3D
             ? _grinderProgress
             : null;
 
+        var stationPower = _stationNode != null
+            ? Keel.Sim.Power.StationPowerSim.Evaluate(_stationNode.Grid, _stationNode.Refinery, CurrentTuning)
+            : default;
+
         var snapshot = new DebugTelemetrySnapshot(
             Position: new SimVector3(pos.X, pos.Y, pos.Z),
             LinearVelocity: new SimVector3(linVel.X, linVel.Y, linVel.Z),
@@ -448,7 +453,8 @@ public partial class GameRoot : Node3D
             GrinderProgress: grinderTelemetry,
             PersistenceStatus: _persistenceSession.Status,
             LastPersistenceError: _persistenceSession.LastError,
-            IsPersistenceFlashActive: _persistenceSession.IsFlashActive);
+            IsPersistenceFlashActive: _persistenceSession.IsFlashActive,
+            StationPower: stationPower);
 
         _debugOverlay.Render(in snapshot);
 
@@ -500,13 +506,14 @@ public partial class GameRoot : Node3D
                 persistenceStatus: _persistenceSession.Status,
                 isPersistenceFlashActive: _persistenceSession.IsFlashActive);
 
-            if (_isRefineryOpen)
+            if (_isRefineryOpen && _stationNode != null)
             {
                 var vm = RefineryTerminalModel.Compute(
                     _stationNode.Refinery,
                     _pilotModeMachine.SuitInventory,
                     _isRefineryOpen,
-                    CurrentTuning.RefineryCycleSeconds);
+                    CurrentTuning.RefineryCycleSeconds,
+                    stationPower);
                 _refineryTerminal.UpdateTerminal(in vm);
             }
         }

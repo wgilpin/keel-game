@@ -6,7 +6,7 @@ namespace Keel.Sim.Refinery;
 
 public static class RefinerySim
 {
-    public static void Step(RefineryState state, TuningConfig config, float deltaSeconds)
+    public static void Step(RefineryState state, TuningConfig config, float deltaSeconds, float powerEfficiency = 1.0f)
     {
         if (deltaSeconds <= 0f)
         {
@@ -37,10 +37,17 @@ public static class RefinerySim
             return;
         }
 
-        // Active refining
+        // Check if unpowered (preserve partial progress and inventory)
+        if (powerEfficiency <= 0f)
+        {
+            state.Status = RefineryStatus.NoPower;
+            return;
+        }
+
+        // Active refining scaled by power efficiency
         state.Status = RefineryStatus.Refining;
         float cycleDuration = Math.Max(0.01f, config.RefineryCycleSeconds);
-        state.CycleProgress += deltaSeconds / cycleDuration;
+        state.CycleProgress += (deltaSeconds * powerEfficiency) / cycleDuration;
 
         while (state.CycleProgress >= 1.0f)
         {

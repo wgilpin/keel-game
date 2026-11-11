@@ -18,7 +18,8 @@ public readonly record struct RefineryTerminalViewModel(
     float CycleProgress,
     string StatusMessage,
     bool CanDeposit,
-    bool CanWithdraw);
+    bool CanWithdraw,
+    string PowerMessage = "");
 
 public static class RefineryTerminalModel
 {
@@ -26,7 +27,8 @@ public static class RefineryTerminalModel
         RefineryState refinery,
         SuitInventory suit,
         bool isOpen,
-        float cycleDurationSeconds)
+        float cycleDurationSeconds,
+        Power.StationPowerSnapshot? power = null)
     {
         int inputOre = refinery.InputInventory.GetCount(ItemId.IronOre);
         int inputCapacity = refinery.InputInventory.Capacity;
@@ -47,7 +49,18 @@ public static class RefineryTerminalModel
         switch (refinery.Status)
         {
             case RefineryStatus.Refining:
-                message = string.Create(CultureInfo.InvariantCulture, $"REFINING {elapsedSeconds:F1}s / {cycleDurationSeconds:F1}s");
+                if (power.HasValue && power.Value.Status == Power.PowerStatus.Brownout)
+                {
+                    int effPct = (int)MathF.Round(power.Value.PowerEfficiency * 100f);
+                    message = string.Create(CultureInfo.InvariantCulture, $"REFINING {elapsedSeconds:F1}s / {cycleDurationSeconds:F1}s (BROWNOUT {effPct}%)");
+                }
+                else
+                {
+                    message = string.Create(CultureInfo.InvariantCulture, $"REFINING {elapsedSeconds:F1}s / {cycleDurationSeconds:F1}s");
+                }
+                break;
+            case RefineryStatus.NoPower:
+                message = "NO POWER — ADD SOLAR PANELS TO STATION";
                 break;
             case RefineryStatus.OutputFull:
                 message = "OUTPUT FULL — [R] WITHDRAW";
@@ -58,6 +71,10 @@ public static class RefineryTerminalModel
                 message = canDeposit ? "IDLE — [E] DEPOSIT IRON ORE" : "IDLE — NO IRON ORE AVAILABLE";
                 break;
         }
+
+        string powerMsg = power.HasValue
+            ? string.Create(CultureInfo.InvariantCulture, $"PWR  {power.Value.GeneratedKw:F0} / {power.Value.DemandKw:F0} kW ({power.Value.Status.ToString().ToUpperInvariant()})")
+            : "PWR  --";
 
         return new RefineryTerminalViewModel(
             IsOpen: isOpen,
@@ -72,6 +89,7 @@ public static class RefineryTerminalModel
             CycleProgress: progress,
             StatusMessage: message,
             CanDeposit: canDeposit,
-            CanWithdraw: canWithdraw);
+            CanWithdraw: canWithdraw,
+            PowerMessage: powerMsg);
     }
 }

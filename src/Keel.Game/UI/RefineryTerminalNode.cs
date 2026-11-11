@@ -33,6 +33,7 @@ public partial class RefineryTerminalNode : CanvasLayer
     private Label _outputBlockLabel = null!;
     private Button _withdrawButton = null!;
     private Label _suitSummaryLabel = null!;
+    private Label _powerLabel = null!;
 
     public override void _Ready()
     {
@@ -113,6 +114,10 @@ public partial class RefineryTerminalNode : CanvasLayer
         _statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
         progressContainer.AddChild(_statusLabel);
 
+        _powerLabel = CreateLabel("PWR  --", font, 11, TerminalMuted);
+        _powerLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        progressContainer.AddChild(_powerLabel);
+
         _progressBar = new ProgressBar
         {
             MinValue = 0,
@@ -161,6 +166,7 @@ public partial class RefineryTerminalNode : CanvasLayer
         var inv = CultureInfo.InvariantCulture;
 
         _statusLabel.Text = vm.StatusMessage;
+        _powerLabel.Text = vm.PowerMessage;
         _progressBar.Value = vm.CycleProgress * 100f;
 
         _inputOreLabel.Text = string.Create(inv, $"{vm.InputOreCount} / {vm.InputOreCapacity} ORE");

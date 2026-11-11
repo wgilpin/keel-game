@@ -1,6 +1,6 @@
 # Phases — Keel
 
-Phase 01 stands up the `Keel.Sim` and `Keel.Game` stack end-to-end with 6DoF cockpit flight so flight feel can be tuned immediately. Phase 02 adds zero-g suit movement and discrete asteroid mining, completing the grey-box feel gate. Phase 03 introduces the `BlockGrid`-backed station and refinery conversion loop, and Phase 04 closes the first slice with 3D grid-snapped block placement.
+Phase 01 stands up the `Keel.Sim` and `Keel.Game` stack end-to-end with 6DoF cockpit flight so flight feel can be tuned immediately. Phase 02 adds zero-g suit movement and discrete asteroid mining, completing the grey-box feel gate. Phase 03 introduces the `BlockGrid`-backed station and refinery conversion loop, and Phase 04 closes the first slice with 3D grid-snapped block placement. Phase 05 adds tool deconstruction and block recycling, Phase 06 adds world persistence, Phase 07 introduces power and cargo storage, Phase 08 enables dynamic ship construction and flight, and Phase 09 expands exploration across the 20 km arena.
 
 ## Phase 01 — Cockpit Flight Tracer
 
@@ -41,3 +41,54 @@ Phase 01 stands up the `Keel.Sim` and `Keel.Game` stack end-to-end with 6DoF coc
 **Not in this phase:** Removing/grinding blocks, dynamic ship grids, conveyors, power, save/load, and worlds beyond 20 km.
 
 **Depends on:** Phase 03
+
+## Phase 05 — Tool Deconstruction & Block Recycling
+
+**Goal:** Add an angle grinder / salvage tool on hotbar slot `[3]` to deconstruct placed blocks and refund `SteelBlock` items into suit cargo.
+
+**Works after this phase:** Select `[3] Grinder` on the suit hotbar, aim at a non-Core station block within `5.0 m`, hold `LMB` to run deconstruction progress with visual cutting beam feedback, and recover `1` `SteelBlock` into suit cargo while removing the block and its Jolt collider from the station grid.
+
+**Not in this phase:** Deconstructing the `Core` block, deconstructing when suit cargo is full, deconstructing blocks that would split the grid into disconnected pieces, dynamic ship construction, and save/load persistence.
+
+**Depends on:** Phase 04
+
+## Phase 06 — World Persistence (Save & Load)
+
+**Goal:** Persist ship transform/velocity, suit inventory, station `BlockGrid`, asteroid ore states, and refinery buffers to clean local JSON so sessions resume seamlessly.
+
+**Works after this phase:** Save current game state on exit or command, restart the game, and resume with the ship, suit cargo, modified station blocks, asteroid ore reserves, and refinery progress preserved.
+
+**Not in this phase:** Multi-slot save managers, cloud sync, or save file version migration.
+
+**Depends on:** Phase 05
+
+## Phase 07 — Station Power & Cargo Storage
+
+**Goal:** Add Solar Panel blocks for passive power generation and Cargo Container blocks for bulk storage with terminal transfer interfaces.
+
+**Works after this phase:** Place Solar Panels to generate station power and Cargo Containers to store large ore/block reserves beyond suit cargo limits, accessible via terminal interaction.
+
+**Not in this phase:** Dynamic ship construction, conveyors, and complex wiring.
+
+**Depends on:** Phase 06
+
+## Phase 08 — Dynamic Ship Construction & Flight
+
+**Goal:** Construct new free-floating ships on dynamic `RigidBody3D` grids with thrusters, gyros, and cockpits, and pilot player-built craft in 6DoF.
+
+**Works after this phase:** Place an anchor block in open space, build a ship hull with functional thrusters, gyro, and cockpit, enter the cockpit, and pilot the custom craft in 6DoF Newtonian flight.
+
+**Not in this phase:** Weapon systems, ship-to-ship docking collars, and pressurized interiors.
+
+**Depends on:** Phase 07
+
+## Phase 09 — Multi-Asteroid Exploration & New Ores
+
+**Goal:** Populate the 20 km arena with a multi-body asteroid cluster featuring diverse ore deposits (Silicon, Cobalt, Nickel) and updated refinery recipes.
+
+**Works after this phase:** Fly across the 20 km space arena to multiple asteroid landmarks, discover and drill distinct ore types, and produce specialized component blocks.
+
+**Not in this phase:** Procedural infinite galaxy, celestial orbital mechanics, or NPC factions.
+
+**Depends on:** Phase 08
+

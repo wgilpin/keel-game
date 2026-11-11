@@ -222,4 +222,41 @@ public sealed class TuningConfigTests
         Assert.False(zeroRange.IsSuccess);
         Assert.Equal(fallback, zeroRange.Config);
     }
+
+    [Fact]
+    public void LoadOrFallback_ValidatesGrinderParametersWithSafeFallback()
+    {
+        const string validJson = """
+        {
+          "grinderRange": 6.5,
+          "grinderRate": 2.0
+        }
+        """;
+
+        var loaded = TuningConfigLoader.LoadOrFallback(validJson, TuningConfig.Default);
+        Assert.True(loaded.IsSuccess);
+        Assert.Null(loaded.ErrorMessage);
+        Assert.Equal(6.5f, loaded.Config.GrinderRange);
+        Assert.Equal(2.0f, loaded.Config.GrinderRate);
+
+        // Negative or zero grinder parameters trigger safe fallback
+        const string invalidRangeJson = """
+        {
+          "grinderRange": -1.0
+        }
+        """;
+        var fallback = loaded.Config;
+        var invalidRange = TuningConfigLoader.LoadOrFallback(invalidRangeJson, fallback);
+        Assert.False(invalidRange.IsSuccess);
+        Assert.Equal(fallback, invalidRange.Config);
+
+        const string zeroRateJson = """
+        {
+          "grinderRate": 0.0
+        }
+        """;
+        var zeroRate = TuningConfigLoader.LoadOrFallback(zeroRateJson, fallback);
+        Assert.False(zeroRate.IsSuccess);
+        Assert.Equal(fallback, zeroRate.Config);
+    }
 }

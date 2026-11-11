@@ -580,4 +580,128 @@ public sealed class SuitVisorHudTests
         Assert.Equal(PromptTone.Warning, emptyAway.PromptTone);
         Assert.True(emptyAway.Slots[1].IsDimmed); // Slot [2] is dimmed
     }
+
+    [Fact]
+    public void VisorModel_SurfacesGrinderSlotAndContextualPrompts()
+    {
+        const int cargoCapacity = 50;
+        const float shipRange = 6.0f;
+        const float grinderRange = 5.0f;
+
+        // 1. Slot 3 is labeled "Grinder", active, not dimmed
+        SuitVisorState state = SuitVisorModel.Compute(
+            currentSlot: 3,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 1.5f,
+            dampenersEnabled: true,
+            targetedBlockType: Keel.Sim.Grid.BlockType.ArmorBlock,
+            targetedBlockDistance: 3.0f,
+            grinderRange: grinderRange);
+
+        Assert.Equal(3, state.ActiveSlot);
+        Assert.Equal("Grinder", state.Slots[2].Name);
+        Assert.True(state.Slots[2].IsSelected);
+        Assert.False(state.Slots[2].IsDimmed);
+        Assert.Equal("[LMB] Deconstruct Block", state.PromptText);
+        Assert.Equal(PromptTone.Primary, state.PromptTone);
+        Assert.False(state.IsTargetOutOfRange);
+
+        // 2. Out of range (7.0m > 5.0m) -> OUT OF RANGE + dimmed reticle flag
+        SuitVisorState outOfRange = SuitVisorModel.Compute(
+            currentSlot: 3,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 1.5f,
+            dampenersEnabled: true,
+            targetedBlockType: Keel.Sim.Grid.BlockType.ArmorBlock,
+            targetedBlockDistance: 7.0f,
+            grinderRange: grinderRange);
+
+        Assert.Equal("OUT OF RANGE", outOfRange.PromptText);
+        Assert.Equal(PromptTone.Warning, outOfRange.PromptTone);
+        Assert.True(outOfRange.IsTargetOutOfRange);
+    }
+
+    [Fact]
+    public void VisorModel_HandlesCoreCargoFullAndOutOfRangeForGrinder()
+    {
+        const int cargoCapacity = 50;
+        const float shipRange = 6.0f;
+        const float grinderRange = 5.0f;
+
+        // 1. Aiming at Core block -> CANNOT DECONSTRUCT CORE (Danger)
+        SuitVisorState coreState = SuitVisorModel.Compute(
+            currentSlot: 3,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 3.0f, // also near ship, but station target takes precedence
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            targetedBlockType: Keel.Sim.Grid.BlockType.Core,
+            targetedBlockDistance: 3.0f,
+            grinderRange: grinderRange);
+
+        Assert.Equal("CANNOT DECONSTRUCT CORE", coreState.PromptText);
+        Assert.Equal(PromptTone.Danger, coreState.PromptTone);
+
+        // 2. Full cargo aiming at ArmorBlock -> CARGO FULL (Danger)
+        SuitVisorState fullCargoState = SuitVisorModel.Compute(
+            currentSlot: 3,
+            slotInput: null,
+            cargoCount: 50,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 3.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            targetedBlockType: Keel.Sim.Grid.BlockType.ArmorBlock,
+            targetedBlockDistance: 3.0f,
+            grinderRange: grinderRange);
+
+        Assert.Equal("CARGO FULL", fullCargoState.PromptText);
+        Assert.Equal(PromptTone.Danger, fullCargoState.PromptTone);
+
+        // 3. Grid split status -> CANNOT SPLIT GRID (Danger)
+        SuitVisorState splitState = SuitVisorModel.Compute(
+            currentSlot: 3,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 3.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            targetedBlockType: Keel.Sim.Grid.BlockType.ArmorBlock,
+            targetedBlockDistance: 3.0f,
+            grinderRange: grinderRange,
+            grinderStatus: Keel.Sim.Grid.GrinderStatus.WouldSplitGrid);
+
+        Assert.Equal("CANNOT SPLIT GRID", splitState.PromptText);
+        Assert.Equal(PromptTone.Danger, splitState.PromptTone);
+
+        // 4. Away from station, near ship -> [F] Board Ship
+        SuitVisorState nearShip = SuitVisorModel.Compute(
+            currentSlot: 3,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 3.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            targetedBlockType: Keel.Sim.Grid.BlockType.None);
+
+        Assert.Equal("[F] Board Ship", nearShip.PromptText);
+        Assert.Equal(PromptTone.Primary, nearShip.PromptTone);
+        Assert.True(nearShip.CanBoardShip);
+    }
 }

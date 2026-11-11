@@ -41,7 +41,7 @@ Updated: 2026-11-11
 - [ ] 05-tool-deconstruction — in progress
   - [x] epic-01-grinder-sim — merged 2026-11-11
   - [x] epic-02-station-block-removal — merged 2026-11-11
-  - [ ] epic-03-grinder-hud-telemetry — pending
+  - [x] epic-03-grinder-hud-telemetry — reviewed 2026-11-11
 - [ ] 06-world-persistence — pending
 - [ ] 07-station-power-storage — pending
 - [ ] 08-dynamic-ship-construction — pending

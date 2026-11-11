@@ -57,7 +57,9 @@ public static class SuitVisorModel
         float refineryInteractRange = 5.0f,
         PlacementStatus placementStatus = PlacementStatus.NoTarget,
         Mining.DrillStatus drillStatus = Mining.DrillStatus.Idle,
-        bool isAimingAtDeposit = false)
+        bool isAimingAtDeposit = false,
+        GrinderStatus grinderStatus = GrinderStatus.Idle,
+        float grinderRange = 5.0f)
     {
         // 1. Hotbar slot clamping / preservation
         int activeSlot = currentSlot;
@@ -178,6 +180,43 @@ public static class SuitVisorModel
                 promptTone = PromptTone.Primary;
             }
         }
+        else if (activeSlot == 3)
+        {
+            if (targetedBlockType != BlockType.None)
+            {
+                if (targetedBlockDistance > grinderRange || grinderStatus == GrinderStatus.OutOfRange)
+                {
+                    prompt = "OUT OF RANGE";
+                    promptTone = PromptTone.Warning;
+                    isTargetOutOfRange = true;
+                }
+                else if (targetedBlockType == BlockType.Core || grinderStatus == GrinderStatus.CannotDeconstructCore)
+                {
+                    prompt = "CANNOT DECONSTRUCT CORE";
+                    promptTone = PromptTone.Danger;
+                }
+                else if (isCargoFull || grinderStatus == GrinderStatus.CargoFull)
+                {
+                    prompt = "CARGO FULL";
+                    promptTone = PromptTone.Danger;
+                }
+                else if (grinderStatus == GrinderStatus.WouldSplitGrid)
+                {
+                    prompt = "CANNOT SPLIT GRID";
+                    promptTone = PromptTone.Danger;
+                }
+                else
+                {
+                    prompt = "[LMB] Deconstruct Block";
+                    promptTone = PromptTone.Primary;
+                }
+            }
+            else if (canBoard)
+            {
+                prompt = "[F] Board Ship";
+                promptTone = PromptTone.Primary;
+            }
+        }
         else
         {
             if (canBoard)
@@ -187,12 +226,12 @@ public static class SuitVisorModel
             }
         }
 
-        // 4. Hotbar slot items: [1] Drill, [2] Steel Block, [3]–[5] Empty
+        // 4. Hotbar slot items: [1] Drill, [2] Steel Block, [3] Grinder, [4]–[5] Empty
         var slots = new[]
         {
             new HotbarSlot(1, "Drill", 1, activeSlot == 1, IsDimmed: false),
             new HotbarSlot(2, "Steel Block", steelBlockCount, activeSlot == 2, IsDimmed: steelBlockCount == 0),
-            new HotbarSlot(3, "Empty", 0, activeSlot == 3, IsDimmed: true),
+            new HotbarSlot(3, "Grinder", 1, activeSlot == 3, IsDimmed: false),
             new HotbarSlot(4, "Empty", 0, activeSlot == 4, IsDimmed: true),
             new HotbarSlot(5, "Empty", 0, activeSlot == 5, IsDimmed: true),
         };

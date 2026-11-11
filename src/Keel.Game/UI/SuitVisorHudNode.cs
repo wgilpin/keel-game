@@ -185,13 +185,16 @@ public partial class SuitVisorHudNode : CanvasLayer
         bool isAimingAtDeposit = false,
         BlockType targetedBlockType = BlockType.None,
         float targetedBlockDistance = float.MaxValue,
-        PlacementStatus placementStatus = PlacementStatus.NoTarget)
+        PlacementStatus placementStatus = PlacementStatus.NoTarget,
+        GrinderStatus grinderStatus = GrinderStatus.Idle,
+        float grinderProgress = 0.0f)
     {
         var inv = CultureInfo.InvariantCulture;
 
-        // 1. Reticle vector pips & extraction arc
-        _reticle.ExtractionProgress = drillProgress;
-        _reticle.IsExtracting = drillStatus == DrillStatus.Drilling;
+        // 1. Reticle vector pips & extraction/deconstruction arc
+        bool isDeconstructing = grinderStatus == GrinderStatus.Deconstructing;
+        _reticle.ExtractionProgress = isDeconstructing ? grinderProgress : drillProgress;
+        _reticle.IsExtracting = drillStatus == DrillStatus.Drilling || isDeconstructing;
         _reticle.UpdateProjection(suitLocalVelocity, cameraFov);
 
         // 2. Bearing tape
@@ -223,7 +226,9 @@ public partial class SuitVisorHudNode : CanvasLayer
             refineryInteractRange: tuning.RefineryInteractRange,
             placementStatus: placementStatus,
             drillStatus: drillStatus,
-            isAimingAtDeposit: isAimingAtDeposit);
+            isAimingAtDeposit: isAimingAtDeposit,
+            grinderStatus: grinderStatus,
+            grinderRange: tuning.GrinderRange);
 
         _currentSlot = visorState.ActiveSlot;
         _reticle.IsTargetOutOfRange = visorState.IsTargetOutOfRange;

@@ -37,3 +37,63 @@ When hotbar slot `[2] Steel Block` is selected with `>= 1` `SteelBlock` in suit 
 - Use exact placement ghost tokens from [design.md](../../design.md): valid `#38BDF8` (`35%` alpha translucent fill + crisp unshaded wireframe lines) and invalid `#EF4444` (`35%` alpha translucent fill + crisp unshaded wireframe lines). Size the ghost slightly proud of `2.50 m` (e.g. `2.505 m` fill box and `2.52 m` line cage) so shared faces with adjacent `#64748B` blocks never Z-fight. Do not write unit tests asserting colour constants (`CLAUDE.md`).
 - Attach `BlockGhostNode` with **zero `CollisionShape3D` children** under `StationGridNode` (using local `cell * 2.5f` coordinates) so forward physics raycasts pass straight through the ghost cube without needing RID exclusions, and hide it whenever `PilotMode == PilotMode.SeatedInCockpit`.
 - Compute conservative station-local AABBs for `SuitRigNode` (capsule radius `0.4 m`, half-height `0.9 m`) and `ShipRigNode` (hull box `3.0 m x 1.8 m x 4.0 m`, transformed across the 8 local box corners so arbitrary 6DoF ship orientation is respected) before passing them into `BlockPlacementSim`.
+
+---
+
+## Build note — 2026-11-11
+
+**Result:** green
+
+### Tasks done
+
+- Implemented 3D AABB clearance and candidate cell validation in `BlockPlacementSim` protecting refinery front `+Z` terminal ports and detecting dynamic suit/ship bounding box overlap with skin tolerance.
+- Created `BlockGhostNode` in `Keel.Game.World` with 35% alpha translucent box mesh and 12-edge unshaded wireframe cage in `#38BDF8` cyan (valid) and `#EF4444` red (invalid) with zero collision shapes.
+- Attached `BlockGhostNode` to `StationGridNode` and wired dynamic suit/ship station-local AABB computation and live ghost preview updates in `GameRoot._PhysicsProcess`.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Grid/BlockPlacementTests.cs`
+  - `BlockPlacementTests.EvaluateAndTryPlace_RejectCellsOverlappingSuitOrShipBoundsWithoutFlushNeighborFalsePositives` (proves AC-1)
+  - `BlockPlacementTests.EvaluateAndTryPlace_ProtectRefineryFrontPortWhileAllowingOtherRefineryFaces` (proves AC-2)
+  - `BlockPlacementTests.Evaluate_ShowsGhostOnlyWhenSlotTwoHasStockWithinRangeAndModalClosed` (proves AC-3)
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Summary: `Passed!  - Failed:     0, Passed:    35, Skipped:     0, Total:    35, Duration: 34 ms - Keel.Sim.Tests.dll (net8.0)`
+
+### Deviations from the plan
+
+None.
+
+### Follow-ups
+
+None.
+
+---
+
+## Review — 2026-11-11
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `BlockPlacementTests.EvaluateAndTryPlace_RejectCellsOverlappingSuitOrShipBoundsWithoutFlushNeighborFalsePositives` |
+| AC-2 | yes | `BlockPlacementTests.EvaluateAndTryPlace_ProtectRefineryFrontPortWhileAllowingOtherRefineryFaces` |
+| AC-3 | yes | `BlockPlacementTests.Evaluate_ShowsGhostOnlyWhenSlotTwoHasStockWithinRangeAndModalClosed` |
+
+### Drift
+
+None
+
+### Findings
+
+None
+
+### Follow-ups
+
+None
+
+

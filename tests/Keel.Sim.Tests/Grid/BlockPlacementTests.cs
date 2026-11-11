@@ -225,4 +225,182 @@ public sealed class BlockPlacementTests
         Assert.False(placedEmpty);
         Assert.Equal(4, grid.Count);
     }
+
+    [Fact]
+    public void EvaluateAndTryPlace_RejectCellsOverlappingSuitOrShipBoundsWithoutFlushNeighborFalsePositives()
+    {
+        var grid = new BlockGrid();
+        grid.TryPlaceBlock(new Int3(0, 0, 0), BlockType.Core, out _);
+        var inventory = new SuitInventory(50);
+        inventory.Add(ItemId.SteelBlock, 10);
+
+        // Candidate cell (1, 0, 0) has center (2.5, 0, 0), spanning [1.25, 3.75] along X
+        // 1. Obstacle directly overlapping candidate cell interior: e.g. Suit box [2.0, 2.8] along X
+        var overlappingObstacle = (Min: new Vector3(2.0f, -0.4f, -0.4f), Max: new Vector3(2.8f, 0.4f, 0.4f));
+
+        var evalBlocked = BlockPlacementSim.Evaluate(
+            grid: grid,
+            isFloatingInSuit: true,
+            activeSlot: 2,
+            steelBlockCount: inventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(1.25f, 0f, 0f),
+            localHitNormal: Vector3.UnitX,
+            hitDistance: 3.0f,
+            buildRange: 7.5f,
+            isModalOpen: false,
+            dynamicObstacles: new[] { overlappingObstacle });
+
+        Assert.Equal(PlacementStatus.InvalidCell, evalBlocked.Status);
+        Assert.False(evalBlocked.IsValid);
+        Assert.True(evalBlocked.ShowGhost);
+        bool placedBlocked = BlockPlacementSim.TryPlace(grid, inventory, in evalBlocked, out string? blockedReason);
+        Assert.False(placedBlocked);
+        Assert.Equal(10, inventory.GetCount(ItemId.SteelBlock)); // zero item loss
+
+        // 2. Obstacle flush against adjacent face or just outside candidate skin tolerance:
+        // Candidate cell extends to X = 3.75. An obstacle at [3.76, 4.5] is outside candidate cell
+        var clearObstacle = (Min: new Vector3(3.76f, -0.4f, -0.4f), Max: new Vector3(4.5f, 0.4f, 0.4f));
+
+        var evalClear = BlockPlacementSim.Evaluate(
+            grid: grid,
+            isFloatingInSuit: true,
+            activeSlot: 2,
+            steelBlockCount: inventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(1.25f, 0f, 0f),
+            localHitNormal: Vector3.UnitX,
+            hitDistance: 3.0f,
+            buildRange: 7.5f,
+            isModalOpen: false,
+            dynamicObstacles: new[] { clearObstacle });
+
+        Assert.Equal(PlacementStatus.Valid, evalClear.Status);
+        Assert.True(evalClear.IsValid);
+        Assert.True(evalClear.ShowGhost);
+        bool placedClear = BlockPlacementSim.TryPlace(grid, inventory, in evalClear, out _);
+        Assert.True(placedClear);
+        Assert.Equal(9, inventory.GetCount(ItemId.SteelBlock));
+    }
+
+    [Fact]
+    public void EvaluateAndTryPlace_ProtectRefineryFrontPortWhileAllowingOtherRefineryFaces()
+    {
+        // Setup Station with default blueprint (Refinery at (0, 0, 3) facing +Z)
+        BlockGrid station = StationBlueprint.CreateDefault();
+        var inventory = new SuitInventory(50);
+        inventory.Add(ItemId.SteelBlock, 5);
+
+        // Refinery is at (0, 0, 3).
+        // 1. Aiming at +Z face of Refinery: candidate cell is (0, 0, 4).
+        // This would seal the refinery front port! Must return InvalidCell and block placement.
+        float refineryCenterZ = 3 * BlockGrid.CellSize; // 7.5m
+        float refineryFaceZ = refineryCenterZ + (BlockGrid.CellSize * 0.5f); // 8.75m
+
+        var evalPort = BlockPlacementSim.Evaluate(
+            grid: station,
+            isFloatingInSuit: true,
+            activeSlot: 2,
+            steelBlockCount: inventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(0f, 0f, refineryFaceZ),
+            localHitNormal: Vector3.UnitZ,
+            hitDistance: 3.5f,
+            buildRange: 7.5f,
+            isModalOpen: false);
+
+        Assert.Equal(PlacementStatus.InvalidCell, evalPort.Status);
+        Assert.False(evalPort.IsValid);
+        Assert.True(evalPort.ShowGhost);
+        Assert.Equal(new Int3(0, 0, 4), evalPort.CandidateCell);
+
+        bool placedPort = BlockPlacementSim.TryPlace(station, inventory, in evalPort, out _);
+        Assert.False(placedPort);
+        Assert.Equal(5, inventory.GetCount(ItemId.SteelBlock)); // zero item loss
+
+        // 2. Aiming at +X face of Refinery: candidate cell is (1, 0, 3).
+        // Non-port side face is unobstructed and valid to build on.
+        var evalSide = BlockPlacementSim.Evaluate(
+            grid: station,
+            isFloatingInSuit: true,
+            activeSlot: 2,
+            steelBlockCount: inventory.GetCount(ItemId.SteelBlock),
+            hasStationHit: true,
+            localHitPosition: new Vector3(BlockGrid.CellSize * 0.5f, 0f, refineryCenterZ),
+            localHitNormal: Vector3.UnitX,
+            hitDistance: 3.5f,
+            buildRange: 7.5f,
+            isModalOpen: false);
+
+        Assert.Equal(PlacementStatus.Valid, evalSide.Status);
+        Assert.True(evalSide.IsValid);
+        Assert.True(evalSide.ShowGhost);
+        Assert.Equal(new Int3(1, 0, 3), evalSide.CandidateCell);
+
+        bool placedSide = BlockPlacementSim.TryPlace(station, inventory, in evalSide, out string? sideReason);
+        Assert.True(placedSide, sideReason);
+        Assert.Equal(4, inventory.GetCount(ItemId.SteelBlock));
+        Assert.Equal(BlockType.ArmorBlock, station.GetBlock(new Int3(1, 0, 3)));
+    }
+
+    [Fact]
+    public void Evaluate_ShowsGhostOnlyWhenSlotTwoHasStockWithinRangeAndModalClosed()
+    {
+        var grid = new BlockGrid();
+        grid.TryPlaceBlock(new Int3(0, 0, 0), BlockType.Core, out _);
+        const float range = 7.5f;
+
+        // Valid base state: ShowGhost is true
+        var evalValid = BlockPlacementSim.Evaluate(
+            grid, isFloatingInSuit: true, activeSlot: 2, steelBlockCount: 3,
+            hasStationHit: true, localHitPosition: new Vector3(1.25f, 0, 0), localHitNormal: Vector3.UnitX,
+            hitDistance: 3.5f, buildRange: range, isModalOpen: false);
+        Assert.True(evalValid.ShowGhost);
+
+        // InvalidCell (candidate cell is already occupied in corner): ShowGhost is still true (red ghost)
+        grid.TryPlaceBlock(new Int3(1, 0, 0), BlockType.ArmorBlock, out _);
+        grid.TryPlaceBlock(new Int3(1, 1, 0), BlockType.ArmorBlock, out _);
+        var evalOccupied = BlockPlacementSim.Evaluate(
+            grid, isFloatingInSuit: true, activeSlot: 2, steelBlockCount: 3,
+            hasStationHit: true, localHitPosition: new Vector3(2.5f, 1.25f, 0f), localHitNormal: Vector3.UnitY,
+            hitDistance: 3.5f, buildRange: range, isModalOpen: false);
+        Assert.Equal(PlacementStatus.InvalidCell, evalOccupied.Status);
+        Assert.Equal(new Int3(1, 1, 0), evalOccupied.CandidateCell);
+        Assert.True(evalOccupied.ShowGhost);
+
+        // OutOfRange: ShowGhost is false
+        var evalOutOfRange = BlockPlacementSim.Evaluate(
+            grid, isFloatingInSuit: true, activeSlot: 2, steelBlockCount: 3,
+            hasStationHit: true, localHitPosition: new Vector3(1.25f, 0, 0), localHitNormal: Vector3.UnitX,
+            hitDistance: 9.0f, buildRange: range, isModalOpen: false);
+        Assert.False(evalOutOfRange.ShowGhost);
+
+        // Slot 1 (Drill): ShowGhost is false
+        var evalSlot1 = BlockPlacementSim.Evaluate(
+            grid, isFloatingInSuit: true, activeSlot: 1, steelBlockCount: 3,
+            hasStationHit: true, localHitPosition: new Vector3(1.25f, 0, 0), localHitNormal: Vector3.UnitX,
+            hitDistance: 3.5f, buildRange: range, isModalOpen: false);
+        Assert.False(evalSlot1.ShowGhost);
+
+        // Zero SteelBlock count: ShowGhost is false
+        var evalZeroStock = BlockPlacementSim.Evaluate(
+            grid, isFloatingInSuit: true, activeSlot: 2, steelBlockCount: 0,
+            hasStationHit: true, localHitPosition: new Vector3(1.25f, 0, 0), localHitNormal: Vector3.UnitX,
+            hitDistance: 3.5f, buildRange: range, isModalOpen: false);
+        Assert.False(evalZeroStock.ShowGhost);
+
+        // Modal terminal open: ShowGhost is false
+        var evalModal = BlockPlacementSim.Evaluate(
+            grid, isFloatingInSuit: true, activeSlot: 2, steelBlockCount: 3,
+            hasStationHit: true, localHitPosition: new Vector3(1.25f, 0, 0), localHitNormal: Vector3.UnitX,
+            hitDistance: 3.5f, buildRange: range, isModalOpen: true);
+        Assert.False(evalModal.ShowGhost);
+
+        // Off-station miss: ShowGhost is false
+        var evalMiss = BlockPlacementSim.Evaluate(
+            grid, isFloatingInSuit: true, activeSlot: 2, steelBlockCount: 3,
+            hasStationHit: false, localHitPosition: Vector3.Zero, localHitNormal: Vector3.Zero,
+            hitDistance: 4.0f, buildRange: range, isModalOpen: false);
+        Assert.False(evalMiss.ShowGhost);
+    }
 }

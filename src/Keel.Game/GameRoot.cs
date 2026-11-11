@@ -226,6 +226,7 @@ public partial class GameRoot : Node3D
             _lastDrillResult = default;
             _isAimingAtDeposit = false;
             _suitRig.SetDrillBeam(false, Vector3.Zero);
+            _stationNode?.GhostNode.HideGhost();
 
             FlightInput flightInput = _inputReader.ConsumeFlightInput(isCaptured);
             _shipRig.ApplyFlightStep(in flightInput, CurrentTuning, (float)delta);
@@ -280,8 +281,9 @@ public partial class GameRoot : Node3D
             int activeSlot = _suitVisorHud.CurrentActiveSlot;
             bool primaryClicked = _inputReader.ConsumePrimaryActionClick();
 
-            if (activeSlot == BlockPlacementSim.BuildSlotIndex && !_isRefineryOpen && _stationNode != null)
+            if (_stationNode != null)
             {
+                var obstacles = ComputeStationLocalObstacles();
                 var placementEval = BlockPlacementSim.Evaluate(
                     grid: _stationNode.Grid,
                     isFloatingInSuit: true,
@@ -292,11 +294,28 @@ public partial class GameRoot : Node3D
                     localHitNormal: simLocalHitNormal,
                     hitDistance: targetedDistance,
                     buildRange: CurrentTuning.BuildRange,
-                    isModalOpen: _isRefineryOpen);
+                    isModalOpen: _isRefineryOpen,
+                    dynamicObstacles: obstacles);
 
-                if (primaryClicked && BlockPlacementSim.TryPlace(_stationNode.Grid, _pilotModeMachine.SuitInventory, in placementEval, out _))
+                if (placementEval.ShowGhost && placementEval.CandidateCell.HasValue)
                 {
-                    _stationNode.AddBlockVisualAndCollider(placementEval.CandidateCell!.Value, BlockType.ArmorBlock);
+                    Vector3 localCenter = new(
+                        placementEval.CandidateCell.Value.X * BlockGrid.CellSize,
+                        placementEval.CandidateCell.Value.Y * BlockGrid.CellSize,
+                        placementEval.CandidateCell.Value.Z * BlockGrid.CellSize);
+                    _stationNode.GhostNode.ShowGhost(localCenter, placementEval.IsValid);
+                }
+                else
+                {
+                    _stationNode.GhostNode.HideGhost();
+                }
+
+                if (primaryClicked && activeSlot == BlockPlacementSim.BuildSlotIndex && !_isRefineryOpen)
+                {
+                    if (BlockPlacementSim.TryPlace(_stationNode.Grid, _pilotModeMachine.SuitInventory, in placementEval, out _))
+                    {
+                        _stationNode.AddBlockVisualAndCollider(placementEval.CandidateCell!.Value, BlockType.ArmorBlock);
+                    }
                 }
             }
 
@@ -511,6 +530,57 @@ public partial class GameRoot : Node3D
         return File.Exists(repoCandidate)
             ? repoCandidate
             : Path.Combine(projectDir, "tuning.json");
+    }
+
+    private (SimVector3 Min, SimVector3 Max)[] ComputeStationLocalObstacles()
+    {
+        if (_stationNode == null)
+        {
+            return Array.Empty<(SimVector3, SimVector3)>();
+        }
+
+        Transform3D invStation = _stationNode.GlobalTransform.AffineInverse();
+
+        // 1. Suit AABB (capsule radius 0.4m, half-height 0.9m)
+        Vector3 suitLocal = invStation * _suitRig.GlobalPosition;
+        Vector3 suitMin = suitLocal - new Vector3(0.4f, 0.9f, 0.4f);
+        Vector3 suitMax = suitLocal + new Vector3(0.4f, 0.9f, 0.4f);
+
+        // 2. Ship AABB (hull box 3.0m x 1.8m x 4.0m -> half extents 1.5, 0.9, 2.0)
+        Vector3 h = new(1.5f, 0.9f, 2.0f);
+        Vector3[] corners =
+        {
+            new(-h.X, -h.Y, -h.Z),
+            new( h.X, -h.Y, -h.Z),
+            new( h.X,  h.Y, -h.Z),
+            new(-h.X,  h.Y, -h.Z),
+            new(-h.X, -h.Y,  h.Z),
+            new( h.X, -h.Y,  h.Z),
+            new( h.X,  h.Y,  h.Z),
+            new(-h.X,  h.Y,  h.Z),
+        };
+
+        Vector3 shipMin = new(float.MaxValue, float.MaxValue, float.MaxValue);
+        Vector3 shipMax = new(float.MinValue, float.MinValue, float.MinValue);
+        for (int i = 0; i < 8; i++)
+        {
+            Vector3 worldCorner = _shipRig.GlobalTransform * corners[i];
+            Vector3 stationCorner = invStation * worldCorner;
+            shipMin = new Vector3(
+                MathF.Min(shipMin.X, stationCorner.X),
+                MathF.Min(shipMin.Y, stationCorner.Y),
+                MathF.Min(shipMin.Z, stationCorner.Z));
+            shipMax = new Vector3(
+                MathF.Max(shipMax.X, stationCorner.X),
+                MathF.Max(shipMax.Y, stationCorner.Y),
+                MathF.Max(shipMax.Z, stationCorner.Z));
+        }
+
+        return new[]
+        {
+            (ToSim(suitMin), ToSim(suitMax)),
+            (ToSim(shipMin), ToSim(shipMax)),
+        };
     }
 
     private static SimVector3 ToSim(Vector3 v) => new(v.X, v.Y, v.Z);

@@ -32,6 +32,7 @@ public partial class GameRoot : Node3D
     private CockpitHudNode _cockpitHud = null!;
     private SuitVisorHudNode _suitVisorHud = null!;
     private StationGridNode _stationNode = null!;
+    private Node3D _asteroidNode = null!;
     private RefineryTerminalNode _refineryTerminal = null!;
     private readonly ShipInputReader _inputReader = new();
     private readonly TuningSession _tuningSession = new(TuningConfig.Default);
@@ -64,7 +65,8 @@ public partial class GameRoot : Node3D
         AddChild(SpaceEnvironmentBuilder.CreateSunlight());
         _stationNode = (StationGridNode)LandmarkBuilder.CreateStation();
         AddChild(_stationNode);
-        AddChild(LandmarkBuilder.CreateAsteroid());
+        _asteroidNode = LandmarkBuilder.CreateAsteroid();
+        AddChild(_asteroidNode);
 
         _configPath = ResolveConfigPath();
         LoadInitialConfig();
@@ -599,6 +601,22 @@ public partial class GameRoot : Node3D
         }
     }
 
+    private List<OreDepositNode> GetOreDepositNodes()
+    {
+        var list = new List<OreDepositNode>();
+        if (_asteroidNode != null)
+        {
+            foreach (Node child in _asteroidNode.GetChildren())
+            {
+                if (child is OreDepositNode dep)
+                {
+                    list.Add(dep);
+                }
+            }
+        }
+        return list;
+    }
+
     private void SaveWorldState()
     {
         if (_shipRig == null || _suitRig == null)
@@ -623,13 +641,17 @@ public partial class GameRoot : Node3D
             _suitRig.DampenersEnabled);
 
         int activeSlot = _suitVisorHud?.CurrentActiveSlot ?? SuitVisorModel.DefaultSlot;
+        var depositStates = GetOreDepositNodes().ConvertAll(n => n.State);
 
         WorldSaveData snapshot = WorldStateMapper.CreateSnapshot(
             _pilotModeMachine.Mode,
             shipKin,
             suitKin,
             activeSlot,
-            _pilotModeMachine.SuitInventory);
+            _pilotModeMachine.SuitInventory,
+            stationGrid: _stationNode?.Grid,
+            refinery: _stationNode?.Refinery,
+            oreDeposits: depositStates);
 
         WorldSaveStore.SaveToFile(_savePath, snapshot);
     }
@@ -643,7 +665,30 @@ public partial class GameRoot : Node3D
         }
 
         WorldSaveData data = loadResult.Data;
-        WorldStateMapper.Apply(data, _pilotModeMachine, _pilotModeMachine.SuitInventory);
+        var depositNodes = GetOreDepositNodes();
+        var depositStates = depositNodes.ConvertAll(n => n.State);
+
+        WorldStateMapper.Apply(
+            data,
+            _pilotModeMachine,
+            _pilotModeMachine.SuitInventory,
+            stationGrid: null,
+            refinery: _stationNode?.Refinery,
+            oreDeposits: depositStates);
+
+        if (data.StationBlocks != null && _stationNode != null)
+        {
+            var tempGrid = new BlockGrid();
+            if (WorldStateMapper.ApplyStationBlocks(data, tempGrid))
+            {
+                _stationNode.ReplaceGrid(tempGrid);
+            }
+        }
+
+        foreach (var node in depositNodes)
+        {
+            node.UpdateVisuals();
+        }
 
         _shipRig.GlobalPosition = ToGodot(data.Ship.Position);
         _shipRig.GlobalBasis = new Basis(ToGodot(data.Ship.Orientation));

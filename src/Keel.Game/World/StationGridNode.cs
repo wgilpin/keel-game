@@ -49,6 +49,18 @@ public partial class StationGridNode : Node3D
         BuildAllBlockVisualsAndColliders();
     }
 
+    public void ReplaceGrid(BlockGrid source)
+    {
+        var existingCells = new List<Int3>(_blockVisuals.Keys);
+        foreach (var cell in existingCells)
+        {
+            RemoveBlockVisualAndCollider(cell);
+        }
+
+        _grid.TryLoadCells(source.Blocks, out _);
+        BuildAllBlockVisualsAndColliders();
+    }
+
     private void BuildAllBlockVisualsAndColliders()
     {
         foreach (var kvp in _grid.Blocks)

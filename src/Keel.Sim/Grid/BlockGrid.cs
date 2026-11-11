@@ -159,4 +159,91 @@ public class BlockGrid
         _blocks[cell] = type;
         return !connected;
     }
+
+    /// <summary>
+    /// Replaces the grid's contents with the provided cells if they form a valid connected station containing Core at (0, 0, 0).
+    /// </summary>
+    public bool TryLoadCells(IEnumerable<KeyValuePair<Int3, BlockType>> cells, out string? error)
+    {
+        var temp = new Dictionary<Int3, BlockType>();
+        bool hasCoreAtZero = false;
+
+        foreach (var kvp in cells)
+        {
+            if (kvp.Value == BlockType.None)
+            {
+                error = $"Cannot load BlockType.None at cell {kvp.Key}.";
+                return false;
+            }
+
+            if (temp.ContainsKey(kvp.Key))
+            {
+                error = $"Duplicate cell coordinate {kvp.Key}.";
+                return false;
+            }
+
+            temp[kvp.Key] = kvp.Value;
+            if (kvp.Key == Int3.Zero && kvp.Value == BlockType.Core)
+            {
+                hasCoreAtZero = true;
+            }
+        }
+
+        if (!hasCoreAtZero)
+        {
+            error = "Grid must contain BlockType.Core at (0, 0, 0).";
+            return false;
+        }
+
+        if (!IsDictionaryConnected(temp))
+        {
+            error = "Loaded grid blocks do not form a single connected component.";
+            return false;
+        }
+
+        _blocks.Clear();
+        foreach (var kvp in temp)
+        {
+            _blocks[kvp.Key] = kvp.Value;
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static bool IsDictionaryConnected(IReadOnlyDictionary<Int3, BlockType> blocks)
+    {
+        if (blocks.Count <= 1)
+        {
+            return true;
+        }
+
+        var visited = new HashSet<Int3>();
+        var queue = new Queue<Int3>();
+
+        using var enumerator = blocks.Keys.GetEnumerator();
+        if (!enumerator.MoveNext())
+        {
+            return true;
+        }
+
+        Int3 start = enumerator.Current;
+        visited.Add(start);
+        queue.Enqueue(start);
+
+        while (queue.Count > 0)
+        {
+            Int3 current = queue.Dequeue();
+            foreach (var offset in Int3.CardinalNeighbors)
+            {
+                Int3 neighbor = current + offset;
+                if (blocks.ContainsKey(neighbor) && visited.Add(neighbor))
+                {
+                    queue.Enqueue(neighbor);
+                }
+            }
+        }
+
+        return visited.Count == blocks.Count;
+    }
 }

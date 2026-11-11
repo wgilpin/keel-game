@@ -1,9 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
+using Keel.Sim.Config;
+using Keel.Sim.Grid;
 using Keel.Sim.Inventory;
+using Keel.Sim.Mining;
 using Keel.Sim.Persistence;
 using Keel.Sim.Pilot;
+using Keel.Sim.Refinery;
 using Xunit;
 
 namespace Keel.Sim.Tests.Persistence;
@@ -227,5 +232,201 @@ public class WorldPersistenceTests
                 Directory.Delete(tempDir, recursive: true);
             }
         }
+    }
+
+    [Fact]
+    public void RoundTrip_PreservesModifiedStationGridAndRejectsDisconnectedOrCorelessGrids()
+    {
+        var grid = StationBlueprint.CreateDefault();
+        // Modify grid: place armor block at (1, 1, 2)
+        grid.TryPlaceBlock(new Int3(1, 1, 2), BlockType.ArmorBlock, out _);
+        // Remove an outer spar block at (4, 0, 0)
+        grid.RemoveBlock(new Int3(4, 0, 0), out _);
+
+        int originalCount = grid.Count;
+        Assert.True(grid.HasBlock(new Int3(1, 1, 2)));
+        Assert.False(grid.HasBlock(new Int3(4, 0, 0)));
+
+        var dummyShip = new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true);
+        var dummySuit = new SuitSaveData(new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true), 1);
+
+        var snapshot = WorldStateMapper.CreateSnapshot(
+            PilotMode.SeatedInCockpit,
+            dummyShip,
+            dummySuit.Kinematics,
+            1,
+            new SuitInventory(50),
+            grid);
+
+        string json = WorldSaveSerializer.Serialize(snapshot);
+        var loadResult = WorldSaveSerializer.Deserialize(json);
+        Assert.True(loadResult.IsSuccess, loadResult.ErrorMessage);
+        Assert.NotNull(loadResult.Data?.StationBlocks);
+
+        var restoredGrid = new BlockGrid();
+        WorldStateMapper.ApplyStationBlocks(loadResult.Data!, restoredGrid);
+
+        Assert.Equal(originalCount, restoredGrid.Count);
+        Assert.True(restoredGrid.HasBlock(new Int3(1, 1, 2)));
+        Assert.False(restoredGrid.HasBlock(new Int3(4, 0, 0)));
+        Assert.Equal(BlockType.Core, restoredGrid.GetBlock(new Int3(0, 0, 0)));
+        Assert.True(restoredGrid.IsConnected());
+
+        // Test rejecting missing Core
+        string corelessJson = """
+        {
+          "version": 1,
+          "pilotMode": "SeatedInCockpit",
+          "ship": {
+            "position": {"x": 0, "y": 0, "z": 0},
+            "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+            "linearVelocity": {"x": 0, "y": 0, "z": 0},
+            "angularVelocity": {"x": 0, "y": 0, "z": 0},
+            "dampenersEnabled": true
+          },
+          "suit": {
+            "kinematics": {
+              "position": {"x": 0, "y": 0, "z": 0},
+              "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+              "linearVelocity": {"x": 0, "y": 0, "z": 0},
+              "angularVelocity": {"x": 0, "y": 0, "z": 0},
+              "dampenersEnabled": true
+            },
+            "activeHotbarSlot": 1
+          },
+          "suitInventory": [],
+          "stationBlocks": [
+            {"cell": {"x": 1, "y": 0, "z": 0}, "blockType": "ArmorBlock"}
+          ]
+        }
+        """;
+        var corelessResult = WorldSaveSerializer.Deserialize(corelessJson);
+        Assert.False(corelessResult.IsSuccess);
+
+        // Test rejecting disconnected grid
+        string disconnectedJson = """
+        {
+          "version": 1,
+          "pilotMode": "SeatedInCockpit",
+          "ship": {
+            "position": {"x": 0, "y": 0, "z": 0},
+            "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+            "linearVelocity": {"x": 0, "y": 0, "z": 0},
+            "angularVelocity": {"x": 0, "y": 0, "z": 0},
+            "dampenersEnabled": true
+          },
+          "suit": {
+            "kinematics": {
+              "position": {"x": 0, "y": 0, "z": 0},
+              "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
+              "linearVelocity": {"x": 0, "y": 0, "z": 0},
+              "angularVelocity": {"x": 0, "y": 0, "z": 0},
+              "dampenersEnabled": true
+            },
+            "activeHotbarSlot": 1
+          },
+          "suitInventory": [],
+          "stationBlocks": [
+            {"cell": {"x": 0, "y": 0, "z": 0}, "blockType": "Core"},
+            {"cell": {"x": 5, "y": 5, "z": 5}, "blockType": "ArmorBlock"}
+          ]
+        }
+        """;
+        var disconnectedResult = WorldSaveSerializer.Deserialize(disconnectedJson);
+        Assert.False(disconnectedResult.IsSuccess);
+    }
+
+    [Fact]
+    public void RoundTrip_PreservesMidCycleRefineryAndContinuesRefiningWithoutLoss()
+    {
+        var refinery = new RefineryState();
+        refinery.InputInventory.Add(ItemId.IronOre, 10);
+        refinery.OutputInventory.Add(ItemId.SteelBlock, 2);
+        refinery.CycleProgress = 0.6f;
+        refinery.Status = RefineryStatus.Refining;
+
+        var dummyShip = new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true);
+        var dummySuit = new SuitSaveData(new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true), 1);
+
+        var snapshot = WorldStateMapper.CreateSnapshot(
+            PilotMode.SeatedInCockpit,
+            dummyShip,
+            dummySuit.Kinematics,
+            1,
+            new SuitInventory(50),
+            refinery: refinery);
+
+        string json = WorldSaveSerializer.Serialize(snapshot);
+        var loadResult = WorldSaveSerializer.Deserialize(json);
+        Assert.True(loadResult.IsSuccess, loadResult.ErrorMessage);
+        Assert.NotNull(loadResult.Data?.Refinery);
+
+        var restoredRefinery = new RefineryState();
+        WorldStateMapper.ApplyRefinery(loadResult.Data!, restoredRefinery);
+
+        Assert.Equal(10, restoredRefinery.InputInventory.GetCount(ItemId.IronOre));
+        Assert.Equal(2, restoredRefinery.OutputInventory.GetCount(ItemId.SteelBlock));
+        Assert.Equal(0.6f, restoredRefinery.CycleProgress, precision: 3);
+        Assert.Equal(RefineryStatus.Refining, restoredRefinery.Status);
+
+        // Step remaining 0.4 cycle time to complete batch
+        var config = Keel.Sim.Config.TuningConfig.Default with { RefineryCycleSeconds = 2.0f, RefineryOrePerBlock = 5.0f };
+        Keel.Sim.Refinery.RefinerySim.Step(restoredRefinery, config, deltaSeconds: 0.8f); // 0.8 / 2.0 = 0.4 progress
+
+        // 1 batch should have completed: 10 - 5 = 5 ore remaining, 2 + 1 = 3 steel blocks
+        Assert.Equal(5, restoredRefinery.InputInventory.GetCount(ItemId.IronOre));
+        Assert.Equal(3, restoredRefinery.OutputInventory.GetCount(ItemId.SteelBlock));
+    }
+
+    [Fact]
+    public void RoundTrip_RestoresOreDepositReservesByIdAndClampsBounds()
+    {
+        var deposits = new List<Keel.Sim.Mining.OreDepositState>
+        {
+            new Keel.Sim.Mining.OreDepositState(30, ItemId.IronOre) { DepositId = "asteroid-01-seam-0" },
+            new Keel.Sim.Mining.OreDepositState(25, ItemId.IronOre) { DepositId = "asteroid-01-seam-1" },
+            new Keel.Sim.Mining.OreDepositState(35, ItemId.IronOre) { DepositId = "asteroid-01-seam-2" },
+        };
+
+        // Mine seam 0 partially and seam 1 fully
+        deposits[0].Extract(10); // 20 left
+        deposits[1].Extract(25); // 0 left (depleted)
+
+        var dummyShip = new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true);
+        var dummySuit = new SuitSaveData(new KinematicsSaveData(Vector3.Zero, Quaternion.Identity, Vector3.Zero, Vector3.Zero, true), 1);
+
+        var snapshot = WorldStateMapper.CreateSnapshot(
+            PilotMode.SeatedInCockpit,
+            dummyShip,
+            dummySuit.Kinematics,
+            1,
+            new SuitInventory(50),
+            oreDeposits: deposits);
+
+        string json = WorldSaveSerializer.Serialize(snapshot);
+        var loadResult = WorldSaveSerializer.Deserialize(json);
+        Assert.True(loadResult.IsSuccess, loadResult.ErrorMessage);
+        Assert.NotNull(loadResult.Data?.OreDeposits);
+
+        var worldDeposits = new List<Keel.Sim.Mining.OreDepositState>
+        {
+            new Keel.Sim.Mining.OreDepositState(30, ItemId.IronOre) { DepositId = "asteroid-01-seam-0" },
+            new Keel.Sim.Mining.OreDepositState(25, ItemId.IronOre) { DepositId = "asteroid-01-seam-1" },
+            new Keel.Sim.Mining.OreDepositState(35, ItemId.IronOre) { DepositId = "asteroid-01-seam-2" },
+            new Keel.Sim.Mining.OreDepositState(30, ItemId.IronOre) { DepositId = "asteroid-01-seam-3" }, // unmatched seam
+        };
+
+        WorldStateMapper.ApplyOreDeposits(loadResult.Data!, worldDeposits);
+
+        Assert.Equal(20, worldDeposits[0].RemainingUnits);
+        Assert.False(worldDeposits[0].IsDepleted);
+
+        Assert.Equal(0, worldDeposits[1].RemainingUnits);
+        Assert.True(worldDeposits[1].IsDepleted);
+
+        Assert.Equal(35, worldDeposits[2].RemainingUnits);
+        Assert.False(worldDeposits[2].IsDepleted);
+
+        Assert.Equal(30, worldDeposits[3].RemainingUnits); // Unmatched retained initial
     }
 }

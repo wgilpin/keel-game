@@ -44,3 +44,70 @@ Saving the world now captures every occupied cell in the station `BlockGrid` (pr
 - Because `BlockGrid.TryPlaceBlock` requires incremental adjacency during insertion, add a clean bulk load/replace helper on `BlockGrid` (e.g., `LoadCells(IEnumerable<KeyValuePair<Int3, BlockType>>)` that populates cells, verifies `GetBlock(Int3.Zero) == BlockType.Core`, and checks `IsConnected()`, rolling back and returning `false` on invalid topology) so valid saved grids load regardless of JSON array element ordering!
 - Assign explicit IDs `"asteroid-01-seam-0"` through `"asteroid-01-seam-3"` to the four `OreDepositNode` children in `LandmarkBuilder.CreateAsteroid` and expose them to `GameRoot` so snapshot capture and restoration never rely on fragile scene-tree child indices.
 - In `StationGridNode.ReplaceGrid(BlockGrid source)`, iterate a copy of `_blockVisuals.Keys` / `_blockColliders.Keys` calling `RemoveBlockVisualAndCollider`, synchronize `_grid` cells, and call `BuildAllBlockVisualsAndColliders()`.
+
+---
+
+## Build note — 2026-11-11
+
+**Result:** green
+
+### Tasks done
+
+- Implemented `TryLoadCells` on `BlockGrid` with Core anchor check at `(0, 0, 0)` and topological connectivity verification.
+- Added `DepositId` property and constructors to `OreDepositState` and `OreDepositNode`.
+- Assigned deterministic deposit IDs (`asteroid-01-seam-0` .. `asteroid-01-seam-3`) in `LandmarkBuilder.CreateAsteroid`.
+- Extended `WorldSaveData` with `GridBlockSaveData`, `RefinerySaveData`, and `OreDepositSaveData`.
+- Extended `WorldSaveSerializer` to validate station blocks (Core at (0, 0, 0), no `None`, no duplicates, connected), refinery buffers and finite cycle progress, and clamped ore deposit reserves.
+- Extended `WorldStateMapper` with `ApplyStationBlocks`, `ApplyRefinery`, and `ApplyOreDeposits`.
+- Implemented `ReplaceGrid(BlockGrid source)` on `StationGridNode` to clear prior block visuals and colliders and build nodes for loaded cells.
+- Wired station grid, refinery buffers, and ore deposits into `GameRoot.SaveWorldState` and `GameRoot.LoadWorldStateOnStartup`.
+- Added unit tests in `WorldPersistenceTests` covering modified grid round-trips, mid-cycle refinery resumption, and deposit reserve tracking.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/Persistence/WorldPersistenceTests.cs`:
+  - `RoundTrip_PreservesModifiedStationGridAndRejectsDisconnectedOrCorelessGrids`
+  - `RoundTrip_PreservesMidCycleRefineryAndContinuesRefiningWithoutLoss`
+  - `RoundTrip_RestoresOreDepositReservesByIdAndClampsBounds`
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Output: `Passed!  - Failed:     0, Passed:    59, Skipped:     0, Total:    59, Duration: 160 ms - Keel.Sim.Tests.dll (net8.0)`
+
+### Deviations from the plan
+
+- None.
+
+### Follow-ups
+
+- None.
+
+---
+
+## Review — 2026-11-11
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `WorldPersistenceTests.RoundTrip_PreservesModifiedStationGridAndRejectsDisconnectedOrCorelessGrids` |
+| AC-2 | yes | `WorldPersistenceTests.RoundTrip_PreservesMidCycleRefineryAndContinuesRefiningWithoutLoss` |
+| AC-3 | yes | `WorldPersistenceTests.RoundTrip_RestoresOreDepositReservesByIdAndClampsBounds` |
+| AC-4 | yes | `StationGridNode.ReplaceGrid`, `OreDepositNode.UpdateVisuals` |
+
+### Drift
+
+None. Preserves pure C# simulation data mapping in `Keel.Sim.Persistence` and engine node recreation in `Keel.Game`.
+
+### Findings
+
+None.
+
+### Follow-ups
+
+None.
+
+

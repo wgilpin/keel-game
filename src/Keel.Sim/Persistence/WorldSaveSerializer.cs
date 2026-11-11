@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Keel.Sim.Grid;
 using Keel.Sim.Inventory;
+using Keel.Sim.Mining;
 using Keel.Sim.Pilot;
+using Keel.Sim.Refinery;
 
 namespace Keel.Sim.Persistence;
 
@@ -87,40 +90,97 @@ public static class WorldSaveSerializer
 
         int clampedSlot = Math.Clamp(parsed.Suit.ActiveHotbarSlot, 1, 5);
 
-        // Validate inventory
-        var validatedInventory = new List<InventoryItemSaveData>();
-        int totalItems = 0;
-        if (parsed.SuitInventory != null)
+        // Validate suit inventory
+        var suitInvValidation = ValidateItemList(parsed.SuitInventory, 50, "Suit inventory");
+        if (!suitInvValidation.IsValid)
         {
-            foreach (var item in parsed.SuitInventory)
+            return new WorldSaveResult(null, false, suitInvValidation.Error);
+        }
+
+        // Validate station blocks
+        List<GridBlockSaveData>? validatedBlocks = null;
+        if (parsed.StationBlocks != null)
+        {
+            var tempGrid = new Dictionary<Int3, BlockType>();
+            bool hasCoreAtZero = false;
+            validatedBlocks = new List<GridBlockSaveData>();
+
+            foreach (var b in parsed.StationBlocks)
             {
-                if (item is null)
+                if (b == null || b.BlockType == BlockType.None || !Enum.IsDefined(typeof(BlockType), b.BlockType))
                 {
-                    continue;
+                    return new WorldSaveResult(null, false, "Invalid or None block type in station blocks.");
                 }
 
-                if (!Enum.IsDefined(typeof(ItemId), item.ItemId) || item.ItemId == ItemId.None)
+                if (tempGrid.ContainsKey(b.Cell))
                 {
-                    return new WorldSaveResult(null, false, $"Invalid item ID in save inventory: {item.ItemId}.");
+                    return new WorldSaveResult(null, false, $"Duplicate station block cell: {b.Cell}.");
                 }
 
-                if (item.Quantity < 0)
+                tempGrid[b.Cell] = b.BlockType;
+                if (b.Cell == Int3.Zero && b.BlockType == BlockType.Core)
                 {
-                    return new WorldSaveResult(null, false, $"Negative inventory item quantity for {item.ItemId}: {item.Quantity}.");
+                    hasCoreAtZero = true;
                 }
 
-                if (item.Quantity > 0)
-                {
-                    totalItems += item.Quantity;
-                    validatedInventory.Add(item);
-                }
+                validatedBlocks.Add(b);
+            }
+
+            if (!hasCoreAtZero)
+            {
+                return new WorldSaveResult(null, false, "Station blocks must contain BlockType.Core at (0, 0, 0).");
+            }
+
+            var dummyGrid = new BlockGrid();
+            if (!dummyGrid.TryLoadCells(tempGrid, out string? gridErr))
+            {
+                return new WorldSaveResult(null, false, $"Invalid station grid: {gridErr}");
             }
         }
 
-        const int maxCapacity = 50; // standard SuitInventory capacity
-        if (totalItems > maxCapacity)
+        // Validate refinery
+        RefinerySaveData? validatedRefinery = null;
+        if (parsed.Refinery != null)
         {
-            return new WorldSaveResult(null, false, $"Suit inventory total items ({totalItems}) exceeds max capacity ({maxCapacity}).");
+            var inItems = ValidateItemList(parsed.Refinery.InputInventory, 100, "Refinery input");
+            if (!inItems.IsValid) return new WorldSaveResult(null, false, inItems.Error);
+
+            var outItems = ValidateItemList(parsed.Refinery.OutputInventory, 100, "Refinery output");
+            if (!outItems.IsValid) return new WorldSaveResult(null, false, outItems.Error);
+
+            if (!float.IsFinite(parsed.Refinery.CycleProgress) || parsed.Refinery.CycleProgress < 0f)
+            {
+                return new WorldSaveResult(null, false, "Refinery cycle progress must be a non-negative finite number.");
+            }
+
+            float clampedProgress = Math.Clamp(parsed.Refinery.CycleProgress, 0f, 0.9999f);
+            validatedRefinery = new RefinerySaveData(
+                inItems.Items!,
+                outItems.Items!,
+                clampedProgress,
+                Enum.IsDefined(typeof(RefineryStatus), parsed.Refinery.Status) ? parsed.Refinery.Status : RefineryStatus.Idle);
+        }
+
+        // Validate ore deposits
+        List<OreDepositSaveData>? validatedDeposits = null;
+        if (parsed.OreDeposits != null)
+        {
+            validatedDeposits = new List<OreDepositSaveData>();
+            foreach (var d in parsed.OreDeposits)
+            {
+                if (d == null || string.IsNullOrWhiteSpace(d.DepositId))
+                {
+                    return new WorldSaveResult(null, false, "Ore deposit must have a non-empty depositId.");
+                }
+
+                int initUnits = Math.Max(0, d.InitialUnits);
+                int remUnits = Math.Clamp(d.RemainingUnits, 0, initUnits);
+                validatedDeposits.Add(new OreDepositSaveData(
+                    d.DepositId,
+                    Enum.IsDefined(typeof(ItemId), d.OreType) ? d.OreType : ItemId.IronOre,
+                    initUnits,
+                    remUnits));
+            }
         }
 
         var normalizedData = new WorldSaveData(
@@ -128,9 +188,50 @@ public static class WorldSaveSerializer
             PilotMode: parsed.PilotMode,
             Ship: shipValidation.NormalizedKinematics!,
             Suit: new SuitSaveData(suitValidation.NormalizedKinematics!, clampedSlot),
-            SuitInventory: validatedInventory);
+            SuitInventory: suitInvValidation.Items!,
+            StationBlocks: validatedBlocks,
+            Refinery: validatedRefinery,
+            OreDeposits: validatedDeposits);
 
         return new WorldSaveResult(normalizedData, true, null);
+    }
+
+    private static (bool IsValid, string? Error, List<InventoryItemSaveData>? Items) ValidateItemList(
+        IReadOnlyList<InventoryItemSaveData>? items,
+        int maxCapacity,
+        string label)
+    {
+        var validated = new List<InventoryItemSaveData>();
+        int total = 0;
+        if (items != null)
+        {
+            foreach (var item in items)
+            {
+                if (item == null) continue;
+                if (!Enum.IsDefined(typeof(ItemId), item.ItemId) || item.ItemId == ItemId.None)
+                {
+                    return (false, $"Invalid item ID in {label}: {item.ItemId}.", null);
+                }
+
+                if (item.Quantity < 0)
+                {
+                    return (false, $"Negative item quantity in {label}: {item.Quantity}.", null);
+                }
+
+                if (item.Quantity > 0)
+                {
+                    total += item.Quantity;
+                    validated.Add(item);
+                }
+            }
+        }
+
+        if (total > maxCapacity)
+        {
+            return (false, $"{label} total items ({total}) exceeds capacity ({maxCapacity}).", null);
+        }
+
+        return (true, null, validated);
     }
 
     private static (bool IsValid, string? Error, KinematicsSaveData? NormalizedKinematics) ValidateKinematics(KinematicsSaveData k, string label)

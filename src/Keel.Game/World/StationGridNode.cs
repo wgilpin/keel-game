@@ -20,6 +20,7 @@ public partial class StationGridNode : Node3D
     private readonly BlockGrid _grid;
     private StaticBody3D _staticBody = null!;
     private readonly Dictionary<Int3, Node3D> _blockVisuals = new();
+    private readonly Dictionary<Int3, CollisionShape3D> _blockColliders = new();
     private readonly RefineryState _refinery = new();
     private BlockGhostNode _ghostNode = null!;
 
@@ -147,9 +148,41 @@ public partial class StationGridNode : Node3D
             Position = localCenter,
         };
         _staticBody.AddChild(colShape);
+        _blockColliders[cell] = colShape;
 
         _staticBody.AddChild(blockRoot);
         _blockVisuals[cell] = blockRoot;
+    }
+
+    /// <summary>
+    /// Removes and frees the visual Node3D and Jolt BoxShape3D collider for a block.
+    /// Returns true if visual or collider existed and was removed.
+    /// </summary>
+    public bool RemoveBlockVisualAndCollider(Int3 cell)
+    {
+        bool removed = false;
+
+        if (_blockVisuals.Remove(cell, out var visualNode))
+        {
+            if (IsInstanceValid(visualNode))
+            {
+                _staticBody.RemoveChild(visualNode);
+                visualNode.QueueFree();
+            }
+            removed = true;
+        }
+
+        if (_blockColliders.Remove(cell, out var colShape))
+        {
+            if (IsInstanceValid(colShape))
+            {
+                _staticBody.RemoveChild(colShape);
+                colShape.QueueFree();
+            }
+            removed = true;
+        }
+
+        return removed;
     }
 
     /// <summary>

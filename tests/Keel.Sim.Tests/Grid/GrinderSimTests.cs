@@ -182,4 +182,63 @@ public sealed class GrinderSimTests
         Assert.True(grid.HasBlock(new Int3(0, 0, 2)));
         Assert.True(grid.IsConnected());
     }
+
+    [Fact]
+    public void BlockRemoval_UpdatesResolveHitCellAndEnablesSubsequentPlacement()
+    {
+        var grid = StationBlueprint.CreateDefault();
+        var targetCell = new Int3(1, 0, 2); // collar leaf
+        var localPos = grid.GetCellCenter(targetCell) + new System.Numerics.Vector3(1.25f, 0, 0);
+        var hitNormal = System.Numerics.Vector3.UnitX;
+
+        // Before removal: raycast hit resolves to targetCell
+        bool hitBefore = grid.ResolveHitCell(localPos, hitNormal, out var struckCell, out var struckType);
+        Assert.True(hitBefore);
+        Assert.Equal(targetCell, struckCell);
+        Assert.Equal(BlockType.ArmorBlock, struckType);
+
+        // Remove block
+        bool removed = grid.RemoveBlock(targetCell, out var removedType);
+        Assert.True(removed);
+        Assert.Equal(BlockType.ArmorBlock, removedType);
+
+        // After removal: raycast hit does NOT resolve to targetCell (empty space)
+        bool hitAfter = grid.ResolveHitCell(localPos, hitNormal, out _, out _);
+        Assert.False(hitAfter);
+
+        // Subsequent placement at targetCell succeeds because cell is now free
+        bool replaced = grid.TryPlaceBlock(targetCell, BlockType.ArmorBlock, out string? reason);
+        Assert.True(replaced, reason);
+        Assert.True(grid.HasBlock(targetCell));
+    }
+
+    [Fact]
+    public void Step_SimulatesFullDeconstructionCycleWithGridRemoval()
+    {
+        var grid = StationBlueprint.CreateDefault();
+        var inventory = new SuitInventory(50);
+        var targetCell = new Int3(1, 0, 2);
+        int initialGridCount = grid.Count;
+        int initialSteel = inventory.GetCount(ItemId.SteelBlock);
+
+        float progress = 0f;
+        Int3? lastTarget = null;
+
+        // Step over 10 frames @ 0.1s delta with grinderRate = 1.0 -> 1.0s total
+        GrinderStepResult lastResult = default;
+        for (int frame = 0; frame < 10; frame++)
+        {
+            lastResult = GrinderSim.Step(
+                grid, inventory, targetCell, grid.GetBlock(targetCell),
+                isFiring: true, activeSlot: 3, hitDistance: 2.5f,
+                grinderRange: 5.0f, grinderRate: 1.0f, deltaSeconds: 0.1f,
+                ref progress, ref lastTarget);
+        }
+
+        Assert.True(lastResult.BlockDeconstructed);
+        Assert.Equal(targetCell, lastResult.DeconstructedCell);
+        Assert.Equal(initialGridCount - 1, grid.Count);
+        Assert.Equal(initialSteel + 1, inventory.GetCount(ItemId.SteelBlock));
+        Assert.False(grid.HasBlock(targetCell));
+    }
 }

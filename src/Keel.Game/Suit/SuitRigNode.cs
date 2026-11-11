@@ -16,6 +16,10 @@ public partial class SuitRigNode : RigidBody3D
     private ImmediateMesh _drillBeamMesh = null!;
     private StandardMaterial3D _drillBeamMaterial = null!;
 
+    private MeshInstance3D _grinderBeamInstance = null!;
+    private ImmediateMesh _grinderBeamMesh = null!;
+    private StandardMaterial3D _grinderBeamMaterial = null!;
+
     public override void _Ready()
     {
         GravityScale = 0.0f;
@@ -56,6 +60,20 @@ public partial class SuitRigNode : RigidBody3D
         };
         AddChild(_drillBeamInstance);
 
+        _grinderBeamMaterial = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = new Color(0x38 / 255f, 0xBD / 255f, 0xF8 / 255f, 1.0f),
+        };
+        _grinderBeamMesh = new ImmediateMesh();
+        _grinderBeamInstance = new MeshInstance3D
+        {
+            Mesh = _grinderBeamMesh,
+            TopLevel = true,
+            Visible = false,
+        };
+        AddChild(_grinderBeamInstance);
+
         SyncMassAndInertia(TuningConfig.Default.SuitMass);
         SetActive(false);
     }
@@ -78,6 +96,7 @@ public partial class SuitRigNode : RigidBody3D
             LinearVelocity = Vector3.Zero;
             AngularVelocity = Vector3.Zero;
             SetDrillBeam(false, Vector3.Zero);
+            SetGrinderBeam(false, Vector3.Zero);
         }
     }
 
@@ -101,6 +120,28 @@ public partial class SuitRigNode : RigidBody3D
         _drillBeamMesh.SurfaceAddVertex(worldHitPoint);
         _drillBeamMesh.SurfaceEnd();
         _drillBeamInstance.Visible = true;
+    }
+
+    public void SetGrinderBeam(bool active, Vector3 worldHitPoint)
+    {
+        if (_grinderBeamInstance == null)
+        {
+            return;
+        }
+
+        if (!active)
+        {
+            _grinderBeamInstance.Visible = false;
+            return;
+        }
+
+        Vector3 toolMuzzle = SuitCamera.GlobalPosition + (SuitCamera.GlobalBasis * new Vector3(0.25f, -0.2f, -0.4f));
+        _grinderBeamMesh.ClearSurfaces();
+        _grinderBeamMesh.SurfaceBegin(Mesh.PrimitiveType.Lines, _grinderBeamMaterial);
+        _grinderBeamMesh.SurfaceAddVertex(toolMuzzle);
+        _grinderBeamMesh.SurfaceAddVertex(worldHitPoint);
+        _grinderBeamMesh.SurfaceEnd();
+        _grinderBeamInstance.Visible = true;
     }
 
     public void ApplyFlightStep(in FlightInput input, TuningConfig tuning, float deltaSeconds)

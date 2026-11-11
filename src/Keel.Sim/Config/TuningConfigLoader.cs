@@ -51,7 +51,9 @@ public static class TuningConfigLoader
                 RefineryOrePerBlock: parsed.RefineryOrePerBlock ?? fallback.RefineryOrePerBlock,
                 RefineryInteractRange: parsed.RefineryInteractRange ?? fallback.RefineryInteractRange,
                 RefineryBufferCapacity: parsed.RefineryBufferCapacity ?? fallback.RefineryBufferCapacity,
-                BuildRange: parsed.BuildRange ?? fallback.BuildRange);
+                BuildRange: parsed.BuildRange ?? fallback.BuildRange,
+                GrinderRange: parsed.GrinderRange ?? fallback.GrinderRange,
+                GrinderRate: parsed.GrinderRate ?? fallback.GrinderRate);
 
             string? validationError = Validate(config);
             if (validationError is not null)
@@ -89,6 +91,8 @@ public static class TuningConfigLoader
         if (!IsPositiveFinite(config.RefineryInteractRange)) return "refineryInteractRange must be a positive finite number.";
         if (!IsPositiveFinite(config.RefineryBufferCapacity) || config.RefineryBufferCapacity < 1.0f) return "refineryBufferCapacity must be >= 1.";
         if (!IsPositiveFinite(config.BuildRange)) return "buildRange must be a positive finite number.";
+        if (!IsPositiveFinite(config.GrinderRange)) return "grinderRange must be a positive finite number.";
+        if (!IsPositiveFinite(config.GrinderRate)) return "grinderRate must be a positive finite number.";
         return null;
     }
 
@@ -116,5 +120,7 @@ public static class TuningConfigLoader
         public float? RefineryInteractRange { get; init; }
         public float? RefineryBufferCapacity { get; init; }
         public float? BuildRange { get; init; }
+        public float? GrinderRange { get; init; }
+        public float? GrinderRate { get; init; }
     }
 }

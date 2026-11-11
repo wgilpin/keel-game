@@ -18,5 +18,7 @@
   "refineryOrePerBlock": 2.0,
   "refineryInteractRange": 5.0,
   "refineryBufferCapacity": 100.0,
-  "buildRange": 7.5
+  "buildRange": 7.5,
+  "grinderRange": 5.0,
+  "grinderRate": 1.0
 }

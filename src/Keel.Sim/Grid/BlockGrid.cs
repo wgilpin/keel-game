@@ -137,4 +137,26 @@ public class BlockGrid
 
         return visited.Count == _blocks.Count;
     }
+
+    /// <summary>
+    /// Checks whether removing the specified cell would partition the remaining blocks into disconnected components.
+    /// Returns false if the cell is not present or if the grid has 2 or fewer blocks.
+    /// </summary>
+    public bool WouldDisconnect(Int3 cell)
+    {
+        if (!_blocks.TryGetValue(cell, out var type))
+        {
+            return false;
+        }
+
+        if (_blocks.Count <= 2)
+        {
+            return false;
+        }
+
+        _blocks.Remove(cell);
+        bool connected = IsConnected();
+        _blocks[cell] = type;
+        return !connected;
+    }
 }

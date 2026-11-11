@@ -34,10 +34,10 @@ Updated: 2026-11-11
   - [x] epic-01-station-block-grid — merged 2026-11-10
   - [x] epic-02-refinery-conversion — merged 2026-11-10
   - [x] epic-03-refinery-terminal — merged 2026-11-10
-- [ ] 04-grid-construction — in progress
+- [x] 04-grid-construction — done
   - [x] epic-01-face-snapped-placement — merged 2026-11-11
   - [x] epic-02-placement-ghost-clearance — merged 2026-11-11
-  - [x] epic-03-construction-hud-telemetry — reviewed 2026-11-11
+  - [x] epic-03-construction-hud-telemetry — merged 2026-11-11
 
 ## Notes for a fresh session
 

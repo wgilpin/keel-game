@@ -241,4 +241,56 @@ public sealed class GrinderSimTests
         Assert.Equal(initialSteel + 1, inventory.GetCount(ItemId.SteelBlock));
         Assert.False(grid.HasBlock(targetCell));
     }
+
+    [Fact]
+    public void ClosedLoop_PlaceAndDeconstructConservesSteelBlocksAndGridConnectivity()
+    {
+        var grid = StationBlueprint.CreateDefault();
+        var inventory = new SuitInventory(50);
+        inventory.Add(ItemId.SteelBlock, 5);
+
+        int initialGridCount = grid.Count;
+        int initialSteelCount = inventory.GetCount(ItemId.SteelBlock);
+        Assert.Equal(5, initialSteelCount);
+        Assert.True(grid.IsConnected());
+
+        // 1. Place a block at (1, 0, 3) adjacent to collar (1, 0, 2)
+        var placementCell = new Int3(1, 0, 3);
+        bool placed = grid.TryPlaceBlock(placementCell, BlockType.ArmorBlock, out string? reason);
+        Assert.True(placed, reason);
+        int removedAmount = inventory.Remove(ItemId.SteelBlock, 1);
+        Assert.Equal(1, removedAmount);
+
+        Assert.Equal(initialGridCount + 1, grid.Count);
+        Assert.Equal(initialSteelCount - 1, inventory.GetCount(ItemId.SteelBlock));
+        Assert.True(grid.IsConnected());
+
+        // 2. Select slot 3 (Grinder), deconstruct the newly placed block
+        float progress = 0f;
+        Int3? lastTarget = null;
+        GrinderStepResult result = default;
+
+        // Step over 10 frames @ 0.1s delta with rate = 1.0 -> 1.0s completion
+        for (int frame = 0; frame < 10; frame++)
+        {
+            result = GrinderSim.Step(
+                grid, inventory, placementCell, BlockType.ArmorBlock,
+                isFiring: true, activeSlot: 3, hitDistance: 3.0f,
+                grinderRange: 5.0f, grinderRate: 1.0f, deltaSeconds: 0.1f,
+                ref progress, ref lastTarget);
+        }
+
+        Assert.True(result.BlockDeconstructed);
+        Assert.Equal(placementCell, result.DeconstructedCell);
+
+        // 3. Invariants verified:
+        // Item count returned 1-for-1 to initial 5
+        Assert.Equal(initialSteelCount, inventory.GetCount(ItemId.SteelBlock));
+        // Grid count returned to initial count
+        Assert.Equal(initialGridCount, grid.Count);
+        // Cell is no longer occupied
+        Assert.False(grid.HasBlock(placementCell));
+        // Grid remains 6-connected
+        Assert.True(grid.IsConnected());
+    }
 }

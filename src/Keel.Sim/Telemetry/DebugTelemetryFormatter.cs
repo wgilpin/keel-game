@@ -16,7 +16,8 @@ public readonly record struct DebugTelemetrySnapshot(
     Int3? TargetGridCell = null,
     BlockType TargetBlockType = BlockType.None,
     Int3? PlacementCandidateCell = null,
-    bool? IsPlacementValid = null);
+    bool? IsPlacementValid = null,
+    float? GrinderProgress = null);
 
 public static class DebugTelemetryFormatter
 {
@@ -41,6 +42,11 @@ public static class DebugTelemetryFormatter
         {
             string validStr = snapshot.IsPlacementValid.Value ? "VALID" : "INVALID";
             gridText += $" -> PLACE {snapshot.PlacementCandidateCell.Value} {validStr}";
+        }
+        else if (snapshot.GrinderProgress.HasValue)
+        {
+            int percent = (int)MathF.Round(snapshot.GrinderProgress.Value * 100f);
+            gridText += $" -> DECONSTRUCT ({percent}%)";
         }
 
         return string.Create(inv,

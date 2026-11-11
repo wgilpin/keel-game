@@ -407,6 +407,10 @@ public partial class GameRoot : Node3D
             ? _lastPlacementEval.IsValid
             : null;
 
+        float? grinderTelemetry = isSuit && _lastGrinderResult.Status == GrinderStatus.Deconstructing
+            ? _grinderProgress
+            : null;
+
         var snapshot = new DebugTelemetrySnapshot(
             Position: new SimVector3(pos.X, pos.Y, pos.Z),
             LinearVelocity: new SimVector3(linVel.X, linVel.Y, linVel.Z),
@@ -418,7 +422,8 @@ public partial class GameRoot : Node3D
             TargetGridCell: _targetedGridCell,
             TargetBlockType: _targetedBlockType,
             PlacementCandidateCell: placementCandidate,
-            IsPlacementValid: isPlacementValid);
+            IsPlacementValid: isPlacementValid,
+            GrinderProgress: grinderTelemetry);
 
         _debugOverlay.Render(in snapshot);
 
@@ -464,7 +469,9 @@ public partial class GameRoot : Node3D
                 isAimingAtDeposit: _isAimingAtDeposit,
                 targetedBlockType: _targetedBlockType,
                 targetedBlockDistance: _targetedStationDistance,
-                placementStatus: _lastPlacementEval.Status);
+                placementStatus: _lastPlacementEval.Status,
+                grinderStatus: _lastGrinderResult.Status,
+                grinderProgress: _grinderProgress);
 
             if (_isRefineryOpen)
             {

@@ -41,3 +41,68 @@ When hotbar slot `[3]` is selected, the Suit Visor HUD displays `Grinder` as equ
 - In `SuitVisorModel.cs`, ensure `activeSlot == 3` prompts take precedence over `[F] Board Ship` when aiming at a station block, mirroring the behavior of slots `1` (drill) and `2` (placement).
 - Update `SuitVisorHudNode.cs` so slot label for slot 3 displays `Grinder` cleanly without clipping or unwanted count display.
 - Extend `DebugTelemetrySnapshot` with optional `Int3? GrinderTargetCell` and `float? GrinderProgress` fields.
+
+---
+
+## Build note — 2026-11-11
+
+**Result:** green
+
+### Tasks done
+
+- Updated `SuitVisorModel` to label hotbar slot `[3]` as `"Grinder"`, added `grinderStatus` and `grinderRange` parameters, and wired contextual prompts (`[LMB] Deconstruct Block`, `CANNOT DECONSTRUCT CORE`, `CARGO FULL`, `CANNOT SPLIT GRID`, `OUT OF RANGE`).
+- Updated `DebugTelemetryFormatter` to format deconstruction telemetry (`-> DECONSTRUCT (progress%)`) in the `F3` overlay snapshot.
+- Updated `SuitVisorHudNode` to route grinder status and deconstruction progress into `SuitVisorModel` and the reticle sweep arc.
+- Updated `GameRoot` to pass grinder telemetry to `SuitVisorHudNode` and `DebugOverlayNode`.
+- Added unit tests in `SuitVisorHudTests`, `DebugTelemetryFormatterTests`, and `GrinderSimTests` covering all acceptance criteria.
+
+### Tests added
+
+- `tests/Keel.Sim.Tests/HUD/SuitVisorHudTests.cs`:
+  - `VisorModel_SurfacesGrinderSlotAndContextualPrompts`
+  - `VisorModel_HandlesCoreCargoFullAndOutOfRangeForGrinder`
+- `tests/Keel.Sim.Tests/Telemetry/DebugTelemetryFormatterTests.cs`:
+  - `Format_SurfacesGrinderProgress`
+- `tests/Keel.Sim.Tests/Grid/GrinderSimTests.cs`:
+  - `ClosedLoop_PlaceAndDeconstructConservesSteelBlocksAndGridConnectivity`
+
+### Suite result
+
+- Command: `dotnet test Keel.sln`
+- Output: `Passed!  - Failed:     0, Passed:    49, Skipped:     0, Total:    49, Duration: 103 ms - Keel.Sim.Tests.dll (net8.0)`
+
+### Deviations from the plan
+
+- None.
+
+### Follow-ups
+
+- None.
+
+---
+
+## Review — 2026-11-11
+
+**Verdict:** pass
+
+### Acceptance criteria
+
+| AC | Met | Proved by |
+|---|---|---|
+| AC-1 | yes | `SuitVisorHudTests.VisorModel_SurfacesGrinderSlotAndContextualPrompts` |
+| AC-2 | yes | `SuitVisorHudTests.VisorModel_HandlesCoreCargoFullAndOutOfRangeForGrinder` |
+| AC-3 | yes | `GrinderSimTests.ClosedLoop_PlaceAndDeconstructConservesSteelBlocksAndGridConnectivity`, `DebugTelemetryFormatterTests.Format_SurfacesGrinderProgress` |
+
+### Drift
+
+None. Preserves pure C# HUD model evaluation in `Keel.Sim.Hud` and telemetry snapshot formatting in `Keel.Sim.Telemetry`.
+
+### Findings
+
+None.
+
+### Follow-ups
+
+None.
+
+

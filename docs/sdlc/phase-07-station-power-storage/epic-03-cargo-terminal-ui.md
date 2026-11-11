@@ -37,3 +37,36 @@ Pressing `F` in `FloatingInSuit` while aiming at any `BlockType.CargoContainer` 
 - Ensure `OpenCargoTerminal(Int3 cell)` closes `_isRefineryOpen` if somehow active (and vice versa) and stores `Int3? _openCargoCell` so tether distance is measured against `_stationNode.GlobalPosition + ToGodot(_stationNode.Grid.GetCellCenter(_openCargoCell.Value))` rather than a hardcoded coordinate.
 - In `GameRoot._Input`, when `_isCargoOpen` is `true`, consume `_inputReader.ConsumeSlotSelection()` and map `1` -> `Deposit(IronOre)`, `2` -> `Withdraw(IronOre)`, `3` -> `Deposit(SteelBlock)`, `4` -> `Withdraw(SteelBlock)` before `_Process` runs so hotbar selection never changes while operating the terminal.
 - In `GameRoot.QuickLoad` and `ApplyWorldSnapshot`, close `CargoTerminalNode` (`CloseCargoTerminal()`) so reloading into `SeatedInCockpit` or onto a grid where that container didn't exist yet never leaves a dangling modal or unlocked cursor.
+
+## Build note
+
+- **Tasks done**:
+  - Implemented `CargoTerminalModel.Compute` evaluating container per-item and bulk counts, progress fill ratios, live power snapshots, and action enablement flags (`CanDepositOre`, `CanWithdrawOre`, `CanDepositBlocks`, `CanWithdrawBlocks`, `CanDepositAll`, `CanWithdrawAll`).
+  - Implemented `CargoTerminalNode` UI on `CanvasLayer` 20 adhering to design tokens (`#101A26` card, `#16222F` rows, `#2B4257` borders, `#38BDF8` cyan trim) with interactive single-item and bulk transfer buttons and keyboard shortcuts (`[1]`–`[4]`, `[E]`, `[R]`, `[F]`/`[Esc]`).
+  - Integrated `CargoTerminalNode` into `GameRoot` with modal mouse unlocking, zero-flight input dampening, tether auto-close at `cargoInteractRange + 1.5 m` from target cell center, slot selection interception, and mutual exclusion with `RefineryTerminalNode`.
+  - Added clean modal shutdown on `QuickLoad`, `ApplyWorldSnapshot`, and cockpit boarding.
+  - Verified full end-to-end loop in `CargoTerminalTests`: multi-trip mining into `500`-unit cargo container, brownout-to-nominal solar panel upgrade, bulk transfers, grinder protection, and lossless JSON save/load round-trip.
+- **Tests added**:
+  - `CargoTerminalTests.ViewModel_ComputesActionAvailabilityPowerStateAndCellSummary`
+  - `CargoTerminalTests.FullLoop_MineStorePowerRefineBuildAndPersistConservesAllItems`
+- **Suite result**: 75 tests passing via `dotnet test Keel.sln` (duration ~93ms).
+- **Deviation from plan**: None.
+
+## Review
+
+### Pass 1: Acceptance criteria conformance
+- **AC-1**: Verified. `CargoTerminalModel.Compute` evaluates per-item counts, container fill ratios, power telemetry, and action enablement flags (`CanDepositOre`, `CanWithdrawOre`, `CanDepositBlocks`, `CanWithdrawBlocks`, `CanDepositAll`, `CanWithdrawAll`) strictly gated on source stock and destination capacity across empty, partial, and full states. Tested by `CargoTerminalTests.ViewModel_ComputesActionAvailabilityPowerStateAndCellSummary`.
+- **AC-2**: Verified. `GameRoot` and `CargoTerminalNode` open bound to target container cell, manage modal cursor state and zero-thrust flight input, route single-keystroke transfers (`[1]`–`[4]`, `[E]`, `[R]`), enforce cell-relative tether breaking (`5.0 m + 1.5 m`), and close cleanly on `F`, `Esc`, boarding, or `QuickLoad`.
+- **AC-3**: Verified. Full headless multi-system loop (mining 100 ore into 500-unit container, brownout refining, building 2 solar panels to reach 125 kW nominal power, bulk transfers, grinder protection, and JSON world snapshot rollback) maintains complete item conservation (200 ore total) with zero drift. Tested by `CargoTerminalTests.FullLoop_MineStorePowerRefineBuildAndPersistConservesAllItems`.
+
+### Pass 2: Architecture & drift check
+- All mathematical evaluation and transfer logic remains purely in `Keel.Sim.Hud` and `Keel.Sim.Storage` with zero engine dependencies.
+- `CargoTerminalNode` adheres to design tokens (`#101A26` card, `#16222F` row surfaces, `#2B4257` borders, `#38BDF8` cyan trim) on `CanvasLayer` 20.
+- Clean mutual exclusion between refinery and cargo terminals prevents overlapping modals or stuck input capture.
+
+### Pass 3: Correctness, security & test suite
+- All numerical clamping, nullability, and boundary validations are rigorously tested.
+- Full test suite: 75 tests pass in 93ms via `dotnet test Keel.sln`.
+
+**Verdict**: pass
+

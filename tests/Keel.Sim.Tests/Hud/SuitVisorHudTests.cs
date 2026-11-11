@@ -409,4 +409,175 @@ public sealed class SuitVisorHudTests
 
         Assert.Equal("NO STEEL BLOCKS — REFINE ORE AT STATION", slot2Empty.PromptText);
     }
+
+    [Fact]
+    public void VisorModel_SurfacesConstructionPromptsAndRangeDimmingWhilePreservingInteractFlags()
+    {
+        const int cargoCapacity = 50;
+        const float shipRange = 6.0f;
+
+        // 1. Valid cell placement prompt when aiming in slot 2 with blocks in ship range (4m <= 6m)
+        // Construction prompt takes display priority over "[F] Board Ship" while CanBoardShip remains true
+        SuitVisorState validState = SuitVisorModel.Compute(
+            currentSlot: 2,
+            slotInput: null,
+            cargoCount: 5,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 4.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 5,
+            placementStatus: Keel.Sim.Grid.PlacementStatus.Valid);
+
+        Assert.Equal("[LMB] Place Steel Block", validState.PromptText);
+        Assert.Equal(PromptTone.Primary, validState.PromptTone);
+        Assert.False(validState.IsTargetOutOfRange);
+        Assert.True(validState.CanBoardShip); // F-key boarding eligibility preserved
+
+        // 2. Invalid cell prompt (occupied / obstructed / port)
+        SuitVisorState invalidState = SuitVisorModel.Compute(
+            currentSlot: 2,
+            slotInput: null,
+            cargoCount: 5,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 5,
+            placementStatus: Keel.Sim.Grid.PlacementStatus.InvalidCell);
+
+        Assert.Equal("INVALID CELL", invalidState.PromptText);
+        Assert.Equal(PromptTone.Danger, invalidState.PromptTone);
+        Assert.False(invalidState.IsTargetOutOfRange);
+
+        // 3. Out of build range prompt & reticle dimming
+        SuitVisorState outOfRangeState = SuitVisorModel.Compute(
+            currentSlot: 2,
+            slotInput: null,
+            cargoCount: 5,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 5,
+            placementStatus: Keel.Sim.Grid.PlacementStatus.OutOfRange);
+
+        Assert.Equal("OUT OF RANGE", outOfRangeState.PromptText);
+        Assert.Equal(PromptTone.Warning, outOfRangeState.PromptTone);
+        Assert.True(outOfRangeState.IsTargetOutOfRange);
+
+        // 4. No target in slot 2 falls back to Board Ship if in ship range
+        SuitVisorState noTargetNearShip = SuitVisorModel.Compute(
+            currentSlot: 2,
+            slotInput: null,
+            cargoCount: 5,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 3.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 5,
+            placementStatus: Keel.Sim.Grid.PlacementStatus.NoTarget);
+
+        Assert.Equal("[F] Board Ship", noTargetNearShip.PromptText);
+        Assert.Equal(PromptTone.Primary, noTargetNearShip.PromptTone);
+        Assert.True(noTargetNearShip.CanBoardShip);
+    }
+
+    [Fact]
+    public void VisorModel_IsolatesDrillAndBuildSlotStatesAndZeroStockFallbacks()
+    {
+        const int cargoCapacity = 50;
+        const float shipRange = 6.0f;
+        const float refineryRange = 5.0f;
+
+        // 1. Slot 1 (Drill) isolates drill prompts and ignores construction placementStatus
+        SuitVisorState slot1Drilling = SuitVisorModel.Compute(
+            currentSlot: 1,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 5,
+            placementStatus: Keel.Sim.Grid.PlacementStatus.Valid, // Should be ignored in slot 1
+            drillStatus: Keel.Sim.Mining.DrillStatus.Drilling,
+            isAimingAtDeposit: true);
+
+        Assert.Equal("[LMB] Drill Iron Ore", slot1Drilling.PromptText);
+        Assert.Equal(PromptTone.Warning, slot1Drilling.PromptTone);
+
+        // 2. Slot 2 ignores drill deposit aiming
+        SuitVisorState slot2WithDeposit = SuitVisorModel.Compute(
+            currentSlot: 2,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 5,
+            placementStatus: Keel.Sim.Grid.PlacementStatus.Valid,
+            drillStatus: Keel.Sim.Mining.DrillStatus.Drilling,
+            isAimingAtDeposit: true);
+
+        Assert.Equal("[LMB] Place Steel Block", slot2WithDeposit.PromptText);
+        Assert.Equal(PromptTone.Primary, slot2WithDeposit.PromptTone);
+
+        // 3. Zero steel blocks in slot 2 prioritizes Refinery first, then Ship, then "NO STEEL BLOCKS"
+        // Near refinery:
+        SuitVisorState emptyNearRefinery = SuitVisorModel.Compute(
+            currentSlot: 2,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 4.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 0,
+            targetedBlockType: Keel.Sim.Grid.BlockType.Refinery,
+            targetedBlockDistance: 3.0f,
+            refineryInteractRange: refineryRange);
+
+        Assert.Equal("[F] Open Refinery", emptyNearRefinery.PromptText);
+        Assert.True(emptyNearRefinery.CanOpenRefinery);
+
+        // Near ship (no refinery target):
+        SuitVisorState emptyNearShip = SuitVisorModel.Compute(
+            currentSlot: 2,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 4.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 0);
+
+        Assert.Equal("[F] Board Ship", emptyNearShip.PromptText);
+        Assert.True(emptyNearShip.CanBoardShip);
+
+        // Away from ship and refinery:
+        SuitVisorState emptyAway = SuitVisorModel.Compute(
+            currentSlot: 2,
+            slotInput: null,
+            cargoCount: 10,
+            cargoCapacity: cargoCapacity,
+            suitToShipDistance: 20.0f,
+            shipInteractRange: shipRange,
+            currentSpeed: 0.0f,
+            dampenersEnabled: true,
+            steelBlockCount: 0);
+
+        Assert.Equal("NO STEEL BLOCKS — REFINE ORE AT STATION", emptyAway.PromptText);
+        Assert.Equal(PromptTone.Warning, emptyAway.PromptTone);
+        Assert.True(emptyAway.Slots[1].IsDimmed); // Slot [2] is dimmed
+    }
 }
